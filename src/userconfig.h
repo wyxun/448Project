@@ -40,9 +40,9 @@
 /*============================ TYPES =========================================*/
 
 /* MODUS object IDs — extend as new class modules are added */
-#define TEMPLATE_CLASS   ((MODUS_ID_MOCK<<8)+1)
-#define FOC_APP          ((MODUS_ID_MOCK<<8)+2)
-
+#define TEMPLATE_CLASS      ((MODUS_ID_MOCK<<8)+1)
+#define MIRCROELEC          ((MODUS_ID_MOCK<<8)+2)
+#define MVC                 ((MODUS_ID_MOCK<<8)+3)
 
 /*============================ MACROFIED FUNCTIONS ===========================*/
 /*============================ GLOBAL VARIABLES ==============================*/

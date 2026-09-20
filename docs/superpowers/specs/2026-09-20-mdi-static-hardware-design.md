@@ -30,6 +30,8 @@ AT32 时钟、GPIO、ADC/DMA、PWM、USART、TMR 寄存器与 IRQ
 ```
 
 `exmdi.h`、旧 `mdi_types.h` 和 `mdi_hw.h` 不再作为新硬件入口。旧文件只在迁移尚未完成的代码中临时保留。
+板级 `state.c` 定义静态绑定需要的 DMA、均值和 Stream 存储，`service.c` 实现
+`mdi_Service()` / `mdi_Clock()`；不再生成聚合 `HW` 对象。
 
 ## 并口 DAC
 
@@ -54,8 +56,9 @@ AT32 后端用 `ODT` 读改写或等价的 `SCR/CLR` 原子写，只修改绑定
 
 1. 芯片初始化配置 ADC 扫描顺序、DMA 双缓冲、DMA 中断和软件触发。
 2. DMA 完成 ISR 只清标志、回收当前 DMA 状态并调用 `MDI_ADC_DMA_Publish(adc1_dma)`。
-3. 应用 Run 或控制任务调用 `MDI_ADC_MeanUpdate(adc1_mean)`，完成均值和稳定快照发布。
-4. 按 tick 到期后调用 `MDI_ADC_Start(adc1_mean)` 启动下一批采样。
+3. MODUS 进入板级 `mdi_Service()` 后调用 `MDI_ADC_MeanUpdate(adc1_mean)`，完成均值和稳定快照发布。
+4. `mdi_Service()` 按编译期生成的 raw tick 周期调用 `MDI_ADC_Start(adc1_mean)` 启动下一批采样；
+   应用 Run 不直接驱动 ADC service。
 5. 应用通过 `MDI_ADC_Read(channel, &value)` 读取 NTC、BIOADC、RFV、RFI、IVADC 等通道视图。
 
 ADC 缓冲区、发布/消费计数器、序列号和均值输出由芯片 `instance.h` 与 feature 绑定提供；AT32 外设初始化代码仍负责真实寄存器时序，但不再导出 `mdi_adc_t`、`mdi_adc_scan_t` 或 `at32_AdcValueHandle()`。
@@ -65,8 +68,12 @@ ADC 缓冲区、发布/消费计数器、序列号和均值输出由芯片 `inst
 - client 的 TMR1 互补 PWM 用静态 PWM 帧、频率、提交和生命周期接口绑定；PA7/PA8 的互补关系由 AT32 后端负责。
 - client 的 SD、RL1～RL6 和 LED 使用静态单 bit IO；继电器数组语义留在 client feature/class。
 - master 的 LED、蜂鸣器、发热低频输出、按键和编码器使用静态 IO；编码器复杂协议另留 feature/driver 层。
-- DWIN 与两板通信需要新增静态 Stream capability；协议状态机仍由 `dwin_driver`、`board_link_driver` 或 MVC 层负责。
+- DWIN 与两板通信使用板级静态 Stream capability；协议状态机仍由 `dwin_driver`、`board_link_driver` 或 MVC 层负责。
 - DAC 采样定时器作为 DAC feature 的芯片后端资源注入，ISR 直接绑定波形步进函数，不恢复通用 `mdi_timer_t` 回调对象。
+
+`mdi_Clock()` 只处理 Stream 超时等 O(1) 轻量维护；DMA/USART ISR 只发布块所有权或搬运
+字节，不能在中断中求均值、解析协议或调用应用逻辑。`mdi_Service()` 是通用的板级前台扩展点，
+除 ADC 外也可以组合项目所需的其他硬件维护。
 
 ## 错误与所有权
 

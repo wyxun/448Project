@@ -2,7 +2,7 @@
 #include "global_define.h"
 #include <stdio.h>
 #include "peripheral.h"
-#include "mdi_hw.h"
+#include "mdi/instance.h"
 #include "perf_counter.h"
 #include "util_debug.h"
 #include "debug_transport.h"
@@ -19,21 +19,15 @@ static modus_t s_tModus = { .ptAppFlash = NULL };
 #if USERCONFIG_MSHELL_ON_SERIAL
 static unsigned s_uart_read(char *pchBuf, unsigned hwSize)
 {
-    if (HW.ptSerial == NULL) {
-        return 0;
-    }
-    int32_t nRead = MDI_Stream_Read(
-        HW.ptSerial, (uint8_t *)pchBuf, (uint32_t)hwSize);
+    int32_t nRead = MDI_STREAM_Read(
+        dwin_stream, (uint8_t *)pchBuf, (uint32_t)hwSize);
     return nRead > 0 ? (unsigned)nRead : 0;
 }
 
 static void s_uart_write(const char *pchBuf, unsigned hwSize)
 {
-    if (HW.ptSerial == NULL) {
-        return;
-    }
-    (void)MDI_Stream_Write(
-        HW.ptSerial, (const uint8_t *)pchBuf, (uint32_t)hwSize);
+    (void)MDI_STREAM_Write(
+        dwin_stream, (const uint8_t *)pchBuf, (uint32_t)hwSize);
 }
 
 static const mshell_io_t s_tUartIO = {
@@ -45,9 +39,9 @@ static const mshell_io_t s_tUartIO = {
 void user_trace_output(const char *str)
 {
 #if USERCONFIG_MSHELL_ON_SERIAL
-    if (str && HW.ptSerial) {
-        (void)MDI_Stream_Write(
-            HW.ptSerial, (const uint8_t *)str, strlen(str));
+    if (str) {
+        (void)MDI_STREAM_Write(
+            dwin_stream, (const uint8_t *)str, strlen(str));
     }
 #else
     debug_transport_write_string(str);

@@ -8,8 +8,9 @@
 #ifndef __MDI_HW_H__
 #define __MDI_HW_H__
 
-#include "mdi/mdi.h"
-#include "mdi/mdi_static.h"
+#include "mdi/legacy/mdi_static.h" /* transitional runtime API */
+#include "mdi/legacy/mdi_types.h"
+#include "mdi/legacy/mdi.h"
 
 #define MDI_STREAM_WRITE_ASSOCIATIONS \
     mdi_stream_t *: mdi_stream_Write
@@ -29,9 +30,24 @@
 typedef struct {
     /* ---------- GPIO ---------- */
     mdi_gpio_t   *ptLedStatus;      /**< 状态指示 LED */
+    mdi_gpio_t   *ptLed[8];          /**< 板级 LED */
+    mdi_gpio_t   *ptHeat1;           /**< RTIN1 */
+    mdi_gpio_t   *ptHeat2;           /**< RTIN2 */
+    mdi_gpio_t   *ptBioPower;        /**< RL0 */
+    mdi_gpio_t   *ptBuzzer;          /**< BUZZ */
+    mdi_gpio_t   *ptKey[3];          /**< KEY1～KEY3 */
+    mdi_gpio_t   *ptEncoder[3];      /**< A、B、按下 */
+    mdi_gpio_t   *ptDacWr;           /**< TLC7528 WR# */
+    mdi_gpio_t   *ptDacAb;           /**< TLC7528 DAC/AB */
+    mdi_gpio_t   *ptDacOe;           /**< TXB0108 OE */
 
     /* ---------- Stream ---------- */
-    mdi_stream_t *ptSerial;       /**< RS232 串口 (PA9/10) */
+    mdi_stream_t *ptSerial;        /**< 迪文屏 USART1 */
+    mdi_stream_t *ptBoardLink;     /**< 两板 UART4/板级 DATA */
+
+    /* ---------- ADC ---------- */
+    mdi_adc_t    *ptNtc[4];         /**< NTC1～NTC4 */
+    mdi_adc_t    *ptBioAdc;         /**< BIOADC */
     
 } mdi_hardware_t;
 
