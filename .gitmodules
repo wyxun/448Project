@@ -3,7 +3,7 @@
 	url = https://ghfast.top/https://github.com/wyxun/modus.git
 [submodule "vendor/cortex-m/AT32F421_Firmware_Library"]
 	path = vendor/cortex-m/AT32F421_Firmware_Library
-	url = https://ghfast.top/https://github.com/ArteryTek/AT32F421_Firmware_Library.git
+	url = https://github.com/ArteryTek/AT32F421_Firmware_Library.git
 	ignore = untracked
 
 [submodule "vendor/cortex-m/cmsis_device_g4"]

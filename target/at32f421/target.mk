@@ -7,7 +7,7 @@
 CPU_FLAGS = -mcpu=cortex-m4 -mthumb -mfloat-abi=soft
 
 # Chip preprocessor defines
-C_DEFS += -DAT32F421F8P7 -DUSE_STDPERIPH_DRIVER
+C_DEFS += -DAT32F421K8T7 -DUSE_STDPERIPH_DRIVER
 
 # CMSIS / peripheral library paths
 CHIPLIB_ROOT = vendor/cortex-m/AT32F421_Firmware_Library/libraries
@@ -34,12 +34,12 @@ USE_DRV_GPIO   ?= 1
 USE_DRV_MISC   ?= 1
 USE_DRV_FLASH  ?= 1
 USE_DRV_SCFG   ?= 0
-USE_DRV_TMR    ?= 0
+USE_DRV_TMR    ?= 1
 USE_DRV_USART  ?= 1
 USE_DRV_SPI    ?= 0
 USE_DRV_I2C    ?= 0
-USE_DRV_DMA    ?= 0
-USE_DRV_ADC    ?= 0
+USE_DRV_DMA    ?= 1
+USE_DRV_ADC    ?= 1
 USE_DRV_CMP    ?= 0
 USE_DRV_DEBUG  ?= 1
 USE_DRV_EXINT  ?= 0

@@ -3,21 +3,21 @@
 # Toolchain : LLVM Embedded Toolchain for Arm (Windows)
 # Usage     : make [BUILD=debug|release] [TARGET_CHIP=stm32g431] ...
 # ==============================================================================
-SW_ROOT ?= D:/software
+SW_ROOT ?= D:/0_software
 MSYS2_BIN = $(SW_ROOT)/msys64/mingw64/bin
 MAKE      = $(MSYS2_BIN)/mingw32-make.exe
 
 # ------------------------------------------------------------------------------
 # Project
 # ------------------------------------------------------------------------------
-TARGET = template
+TARGET = M448_Client
 
 # Support both target=xxx (lowercase) and TARGET_CHIP=xxx (uppercase)
 ifdef target
     TARGET_CHIP = $(target)
 endif
 
-TARGET_CHIP ?= stm32g431
+TARGET_CHIP ?= at32f421
 CLASS_SOURCES = class/template_class.c template_driver.c
 
 include target/$(TARGET_CHIP)/target.mk
@@ -128,6 +128,7 @@ PERIF_LIB_SOURCES =                                                             
 
 PERIPHERAL_SOURCES = $(wildcard peripheral/*.c)
 PERIPHERAL_SOURCES += $(wildcard peripheral/$(TARGET_CHIP)/*.c)
+PERIPHERAL_SOURCES += $(wildcard peripheral/$(TARGET_CHIP)/mdi/*.c)
 PERIPHERAL_SOURCES += $(wildcard peripheral/driver/*.c)
 
 

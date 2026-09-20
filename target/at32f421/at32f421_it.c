@@ -32,8 +32,7 @@ void SVC_Handler(void)              {}
 void DebugMon_Handler(void)         {}
 void PendSV_Handler(void)           {}
 
-#include "port_mdi.h"
-extern at32_usart_priv_t s_tUsart1Priv;
+#include "mdi/instance.h"
 
 /**
  * @brief SysTick 1ms 定时中断
@@ -45,7 +44,6 @@ void SysTick_Handler(void)
     perfc_port_insert_to_system_timer_insert_ovf_handler();
 
     modus_Clock();
-    at32_usart_timer_1ms(&s_tUsart1Priv);
 }
 
 /* -------------------------------------------------------------------------- */
@@ -60,7 +58,12 @@ void CRM_IRQHandler(void)                   {}
 void EXINT1_0_IRQHandler(void)              {}
 void EXINT3_2_IRQHandler(void)              {}
 void EXINT15_4_IRQHandler(void)             {}
-void DMA1_Channel1_IRQHandler(void)         {}
+void DMA1_Channel1_IRQHandler(void)
+{
+    MDI_AT32_ADC_DMA_COMPLETE_IRQ(
+        client_adc_dma, ADC1, DMA1_CHANNEL1, DMA1_DTERR1_FLAG,
+        DMA1_FDT1_FLAG, g_at32_client_adc_dma_busy);
+}
 void DMA1_Channel3_2_IRQHandler(void)       {}
 void DMA1_Channel5_4_IRQHandler(void)       {}
 void ADC1_CMP_IRQHandler(void)              {}
@@ -76,7 +79,7 @@ void I2C1_EVT_IRQHandler(void)              {}
 void I2C2_EVT_IRQHandler(void)              {}
 void SPI1_IRQHandler(void)                  {}
 void SPI2_IRQHandler(void)                  {}
-void USART1_IRQHandler(void)                { at32_usart_irq_handler(&s_tUsart1Priv); }
+void USART1_IRQHandler(void)                { MDI_AT32_STREAM_IRQ(g_at32_client_serial_stream); }
 void USART2_IRQHandler(void)                {}
 void I2C1_ERR_IRQHandler(void)              {}
 void I2C2_ERR_IRQHandler(void)              {}

@@ -1,5 +1,9 @@
 # MODUS Bare-Metal Template
 
+> **M448 当前 MDI 说明：** 工程采用静态 MDI 绑定。板级实现以
+> `peripheral/at32f421/mdi/instance.h`、`backend.h`、`state.c`、`service.c` 为准；
+> 本 README 中较早的 `HW` / `port_mdi.c` 示例仅作历史参考。
+
 本工程是一个面向 ARM Cortex-M（当前支持 STM32G431 与 AT32F421，支持多芯片无缝扩展）的纯裸机抽象开发模板。
 
 此外，本模板采用 **Git Submodule (子模块)** 机制来统一管理第三方依赖（包括 CMSIS 核心库、厂家芯片库代码、以及 MODUS 框架本身）。这也是目前业界的主流演进趋势：**后续所有原厂固件库和第三方组件都直接通过 Git 仓库的形式被项目引用和同步更新**，告别手工复制粘贴代码。
@@ -30,14 +34,14 @@
   - `vendor/riscv/` — 预留 RISC-V 架构支持。
 - **`peripheral/`**：**底层硬件终极适配层**（*核心护城河*）。
   - 该目录及其子目录负责**隔离所有特定的芯片依赖**，上层业务代码不再直接与芯片固件库打交道。
-  - **`peripheral.h` & `mdi_hw.h`** (顶层接口)：向应用层暴露跨平台的系统初始化入口 `peripheral_Init()`、时钟查询以及全局外设资源池 `HW` 实例。
-  - **`peripheral/<芯片代号>/`** (如 `stm32g431/`、`at32f421/`)：芯片的具体驱动包裹代码全在这里。
-    - `port_sys.c`：处理时钟树初始化 (`SystemClock_Config`)、中断向量配置等系统级别底层动作。
-    - `port_mdi.c`：将杂乱的厂商库 API 统一包装为 MDI 标准的 `mdi_gpio_t`、`mdi_pwm_t` 等多态对象，并最终实例化外部全局变量 `HW` 供上层使用。
+  - **`peripheral.h`**：向应用层暴露系统初始化入口 `peripheral_Init()`；运行时硬件能力由静态 MDI token 提供。
+  - **`peripheral/<芯片代号>/mdi/`**：芯片实例、寄存器后端、板级共享状态和 `mdi_Service()` / `mdi_Clock()` 回调集中在这里。
+  - **`peripheral/<芯片代号>/`** (如 `stm32g431/`、`at32f421/`)：芯片的具体初始化和中断适配代码全在这里。
+    - `port_sys.c`：调用厂商库完成一次性时钟、GPIO、ADC/DMA、定时器、串口和中断初始化。
 - **`src/` & `class/`**：**纯上层应用业务层**。
   - 包含主入口 `main.c` 以及各种高阶的抽象控制逻辑。
   - **开发禁令**：在这个层级**绝对禁止**包含诸如 `at32f421.h`、`stm32xxx.h` 这类厂商专有库，也**禁止**直接调用 `gpio_bits_write` 这类特有底层函数！
-  - 业务逻辑初始化只需调用 `peripheral_Init()`，外设交互完全通过引入 `mdi_hw.h` 得到全局 `HW` 对象后，利用统一的 `MDI_Write/Read` 宏接口与底层交握。
+  - 业务逻辑初始化只需调用 `peripheral_Init()`；应用通过 `mdi/mdi.h` 使用静态绑定的 `MDI_*` 原语，不查找设备、不持有运行时 `HW` 对象。
 - **`build/`**：LLVM 工具链构建输出目录，生成最终的固件 (`.elf`, `.bin`, `.hex`)。
 - **`tools/mstudio/`**：MStudio 上位机调试工具（Windows 桌面应用），包含波形分析、Shell 终端、寄存器查看、变量监控、Map 分析等面板。
 
@@ -81,35 +85,15 @@
 ---
 
 ## 3. 跨平台框架如何开发？ (How to Develop)
-基于本模板开发应用程序，你只需要遵循“**配置外设 -> 包装 GDI -> 纯应用态编写**”规范：
+基于本模板开发应用程序，你只需要遵循“**芯片初始化 -> 静态 MDI 绑定 -> 业务模块编写**”规范：
 
 ### 步骤 1：针对目标芯片实现底层细节 (MDI Porting)
-1. 设计系统的共用对象：在 **`peripheral/mdi_hw.h`** 中的 `mdi_hardware_t` 里声明当前应用到底用到了哪些设备（它将作为抽象的”插座”使用）。
-   ```c
-   typedef struct {
-       mdi_gpio_t *ptLedStatus;  // 状态灯
-       mdi_gpio_t *ptRelay1;     // 新增继电器
-   } mdi_hardware_t;
-   ```
-2. 进入特定芯片适配目录（例如 `peripheral/stm32g431/`）：
-   - 在 **`port_sys.c`** 里调用厂商库初始化好系统的核心频率及开放特定的 GPIO 口时钟等。
-   - 在 **`port_mdi.c`** 里编写厂商库的包壳层（驱动实现）：
-     ```c
-     // 1. 实现对接特定厂家的控制逻辑
-     static int32_t stm32_relay_Set(void *pPriv, mdi_gpio_level_t eLevel) {
-         HAL_GPIO_WritePin(GPIOA, GPIO_PIN_1, (GPIO_PinState)eLevel);
-         return 0;
-     }
-
-     // 2. 将其关联实例化到静态的 MDI 对象
-     static mdi_gpio_t s_tRelay1 = { .fnSet = stm32_relay_Set };
-
-     // 3. 在最后实例化对外暴露的硬件资源池 HW
-     const mdi_hardware_t HW = {
-         .ptLedStatus = &s_tLedGpio,
-         .ptRelay1    = &s_tRelay1,
-     };
-     ```
+1. 在 `peripheral/<芯片>/mdi/instance.h` 中用绑定宏声明 GPIO、ADC、Stream 等静态资源；
+   `backend.h` 只提供寄存器级操作，避免运行时对象和函数指针链。
+2. 在 `state.c` 中定义 DMA 缓冲、发布序号、均值快照和队列等共享存储；在 `service.c`
+   中实现板级 `mdi_Service()` / `mdi_Clock()`，组合 ADC 均值、采样调度和轻量超时维护。
+3. 在 `port_sys.c` 中调用厂商库完成一次性初始化；DMA/串口 IRQ 只发布块所有权或接收字节，
+   不在中断中做均值、协议解析或业务处理。
 
 ### 步骤 2：上层应用业务逻辑与模块化 (Application Logic & Modularization)
 
@@ -161,21 +145,21 @@ fsm_rt_t template_class_Run(template_class_t *ptThis)
 ```
 
 #### 5. 硬件调用：MDI 接口
-业务层与硬件交互时，必须通过 `mdi_hw.h` 获取全局资源池 `HW`，并使用通用 MDI 宏：
+业务层直接包含 `mdi/mdi.h`，使用编译期绑定的 MDI 原语：
 ```c
 // 示例：操控继电器或串口（与特定芯片引脚解耦）
-MDI_Write(HW.ptRelay1, MDI_GPIO_HIGH);
-MDI_Write(HW.ptSerial, "Hello", 5);
+MDI_IO_Write(board_led, 1U);
+MDI_STREAM_Write(board_link_stream, data, length);
 ```
 
 | 常用宏 | 对应操作 |
 |----|------|
-| `MDI_Write(ptObj, val)` | 写入状态/数据 |
-| `MDI_Read(ptObj)` | 读取状态/接收数据 |
-| `MDI_Toggle(ptObj)` | 翻转 GPIO 状态 |
-| `MDI_IsBusy(ptObj)` | 查询外设是否忙碌（针对 UART/I2C 等） |
+| `MDI_GPIO_*` | GPIO 电平读写 |
+| `MDI_STREAM_*` | 串口/字节流读写、可用量和忙状态 |
+| `MDI_ADC_*` | ADC DMA 启动、均值更新和结果读取 |
+| `MDI_TICK_*` | 原始 CPU tick 读取和无符号差值判断 |
 
-> 完整宏定义参考 `modus/modus/mdi/mdi.h`。
+> 完整宏定义参考 `modus/src/mdi/mdi.h` 及其 `core/`、`feature/` 文档。
  
  ### 步骤 3：项目依赖与功能伸缩调整 (Makefile Toggling)
  工程采用了灵活自由的 Makefile 管理。如果你在开发中启用了诸如 I2C 或 SPI 这种原本关闭的内置外设：
