@@ -4,7 +4,7 @@
  */
 #include "instance.h"
 
-mdi_at32_stream_state_t g_at32_client_serial_stream;
+mdi_uart_stream_state_t g_at32_client_serial_stream;
 uint8_t g_at32_client_serial_tx[AT32_CLIENT_STREAM_BUFFER_SIZE];
 uint8_t g_at32_client_serial_rx[AT32_CLIENT_STREAM_BUFFER_SIZE];
 

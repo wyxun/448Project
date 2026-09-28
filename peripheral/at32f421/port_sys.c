@@ -225,13 +225,12 @@ static void usart1_init(void)
     usart_flag_clear(USART1, USART_TDBE_FLAG);
     usart_flag_clear(USART1, USART_TDC_FLAG);
     usart_flag_clear(USART1, USART_RDBF_FLAG);
-    usart_interrupt_enable(USART1, USART_TDC_INT, TRUE);
 
-    MDI_AT32_STREAM_INIT(g_at32_client_serial_stream, USART1,
-                         g_at32_client_serial_tx,
-                         AT32_CLIENT_STREAM_BUFFER_SIZE,
-                         g_at32_client_serial_rx,
-                         AT32_CLIENT_STREAM_BUFFER_SIZE);
+    (void)MDI_UART_STREAM_INIT(g_at32_client_serial_stream,
+                               g_at32_client_serial_tx,
+                               AT32_CLIENT_STREAM_BUFFER_SIZE,
+                               g_at32_client_serial_rx,
+                               AT32_CLIENT_STREAM_BUFFER_SIZE);
 }
 
 /**

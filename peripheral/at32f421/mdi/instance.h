@@ -16,7 +16,7 @@
 MDI_AT32_TICK_BIND(raw_tick, get_system_ticks)
 
 #define AT32_CLIENT_STREAM_BUFFER_SIZE 256U
-extern mdi_at32_stream_state_t g_at32_client_serial_stream;
+extern mdi_uart_stream_state_t g_at32_client_serial_stream;
 extern uint8_t g_at32_client_serial_tx[AT32_CLIENT_STREAM_BUFFER_SIZE];
 extern uint8_t g_at32_client_serial_rx[AT32_CLIENT_STREAM_BUFFER_SIZE];
 
@@ -100,6 +100,6 @@ MDI_ADC_CHANNEL_MEAN_BIND(client_rfi, client_adc_mean,
                           g_at32_client_adc_mean[4], 0xFFFFU, 0U,
                           g_at32_client_adc_sequence)
 
-MDI_AT32_STREAM_BIND(serial_stream, g_at32_client_serial_stream)
+MDI_AT32_UART_STREAM_BIND(serial_stream, g_at32_client_serial_stream, USART1)
 
 #endif /* M448_CLIENT_AT32F421_MDI_INSTANCE_H */

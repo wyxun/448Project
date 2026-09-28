@@ -79,7 +79,7 @@ void I2C1_EVT_IRQHandler(void)              {}
 void I2C2_EVT_IRQHandler(void)              {}
 void SPI1_IRQHandler(void)                  {}
 void SPI2_IRQHandler(void)                  {}
-void USART1_IRQHandler(void)                { MDI_AT32_STREAM_IRQ(g_at32_client_serial_stream); }
+void USART1_IRQHandler(void)                { MDI_UART_STREAM_IRQ(serial_stream); }
 void USART2_IRQHandler(void)                {}
 void I2C1_ERR_IRQHandler(void)              {}
 void I2C2_ERR_IRQHandler(void)              {}
