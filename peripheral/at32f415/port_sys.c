@@ -151,7 +151,6 @@ static void usart_config(usart_type *ptUsart, uint32_t wBaud,
     usart_parity_selection_config(ptUsart, USART_PARITY_NONE);
     usart_hardware_flow_control_set(ptUsart, USART_HARDWARE_FLOW_NONE);
     usart_interrupt_enable(ptUsart, USART_RDBF_INT, TRUE);
-    usart_interrupt_enable(ptUsart, USART_TDC_INT, TRUE);
     usart_enable(ptUsart, TRUE);
     usart_flag_clear(ptUsart, USART_TDBE_FLAG);
     usart_flag_clear(ptUsart, USART_TDC_FLAG);
@@ -181,16 +180,16 @@ static void serial_init(void)
     serial_gpio_init();
     usart_config(USART1, 115200U, USART1_IRQn);
     usart_config(USART3, 4800U, USART3_IRQn);
-    MDI_AT32_STREAM_INIT(g_at32_master_dwin_stream, USART1,
-                         g_at32_master_dwin_tx,
-                         AT32_MASTER_STREAM_BUFFER_SIZE,
-                         g_at32_master_dwin_rx,
-                         AT32_MASTER_STREAM_BUFFER_SIZE);
-    MDI_AT32_STREAM_INIT(g_at32_master_board_link_stream, USART3,
-                         g_at32_master_board_link_tx,
-                         AT32_MASTER_STREAM_BUFFER_SIZE,
-                         g_at32_master_board_link_rx,
-                         AT32_MASTER_STREAM_BUFFER_SIZE);
+    (void)MDI_UART_STREAM_INIT(g_at32_master_dwin_stream,
+                               g_at32_master_dwin_tx,
+                               AT32_MASTER_STREAM_BUFFER_SIZE,
+                               g_at32_master_dwin_rx,
+                               AT32_MASTER_STREAM_BUFFER_SIZE);
+    (void)MDI_UART_STREAM_INIT(g_at32_master_board_link_stream,
+                               g_at32_master_board_link_tx,
+                               AT32_MASTER_STREAM_BUFFER_SIZE,
+                               g_at32_master_board_link_rx,
+                               AT32_MASTER_STREAM_BUFFER_SIZE);
 }
 
 static void dac_sample_timer_init(void)

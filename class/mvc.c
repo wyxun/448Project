@@ -22,7 +22,6 @@ int mvc_Init(uintptr_t wObjectAddr, uintptr_t wObjectCfgAddr)
 {
     mvc_t *ptThis = (mvc_t *)wObjectAddr;
     const mvc_cfg_t *ptCfg = (const mvc_cfg_t *)wObjectCfgAddr;
-    board_link_driver_cfg_t tBoardLinkCfg;
     dwin_driver_cfg_t tDwinCfg;
     mvc_ui_cfg_t tUiCfg;
     int nResult;
@@ -36,8 +35,7 @@ int mvc_Init(uintptr_t wObjectAddr, uintptr_t wObjectCfgAddr)
     ptThis->ptBase = &s_tMvcBase;
     ptThis->eState = MVC_STATE_UNINITIALIZED;
 
-    tBoardLinkCfg = ptCfg->tBoardLinkCfg;
-    if (board_link_driver_Init(&ptThis->tBoardLink, &tBoardLinkCfg)
+    if (board_link_driver_Init(&ptThis->tBoardLink)
         != BOARD_LINK_DRIVER_RESULT_OK) {
         ptThis->eState = MVC_STATE_ERROR;
         return MODUS_EFAIL;
@@ -79,11 +77,6 @@ int mvc_Run(uintptr_t wObjectAddr)
         ptThis->eState = MVC_STATE_ERROR;
         return MODUS_EFAIL;
     }
-    if (board_link_driver_Run(&ptThis->tBoardLink)
-        != BOARD_LINK_DRIVER_RESULT_OK) {
-        ptThis->eState = MVC_STATE_ERROR;
-        return MODUS_EFAIL;
-    }
     if (mvc_ui_Run(&ptThis->tUi) != 0) {
         ptThis->eState = MVC_STATE_ERROR;
         return MODUS_EFAIL;
@@ -99,24 +92,10 @@ int mvc_Clock(uintptr_t wObjectAddr)
         return MODUS_EFAIL;
     }
 
-    if (dwin_driver_Clock(&ptThis->tDwin) != DWIN_DRIVER_RESULT_OK) {
-        ptThis->eState = MVC_STATE_ERROR;
-        return MODUS_EFAIL;
-    }
-    if (board_link_driver_Clock(&ptThis->tBoardLink)
-        != BOARD_LINK_DRIVER_RESULT_OK) {
-        ptThis->eState = MVC_STATE_ERROR;
-        return MODUS_EFAIL;
-    }
-    if (mvc_ui_Clock(&ptThis->tUi) != 0) {
-        ptThis->eState = MVC_STATE_ERROR;
-        return MODUS_EFAIL;
-    }
     return MODUS_SUCCESS;
 }
 
 MODUS_DECLARE_OBJECT(mvc, Mvc,
-    .tBoardLinkCfg = { .wReserved = 0U },
     .tDwinCfg = {
         .wFrameTimeoutMs = DWIN_DRIVER_FRAME_TIMEOUT_MS,
     }

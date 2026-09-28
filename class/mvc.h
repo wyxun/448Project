@@ -13,7 +13,6 @@ typedef enum {
 } mvc_state_t;
 
 typedef struct {
-    board_link_driver_cfg_t tBoardLinkCfg;
     dwin_driver_cfg_t tDwinCfg;
 } mvc_cfg_t;
 

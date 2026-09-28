@@ -35,28 +35,11 @@ static const uint8_t s_chSineTable[DAC_DRIVER_SINE_TABLE_SIZE] = {
     79U, 82U, 85U, 88U, 90U, 93U, 97U, 100U, 103U, 106U, 109U, 112U, 115U, 118U, 121U, 124U,
 };
 
-static dac_driver_t *s_ptDacDriver;
-
 static bool _dac_driver_IsReady(const dac_driver_t *ptThis)
 {
     return (ptThis != NULL)
-        && (ptThis->eState == DAC_DRIVER_STATE_READY);
-}
-
-static void _dac_driver_UpdateSamplePhaseStep(dac_driver_t *ptThis,
-                                               dac_driver_wave_t *ptWave)
-{
-    if ((ptThis == NULL) || (ptWave == NULL)
-        || (ptThis->wSampleFrequencyHz == 0U)) {
-        if (ptWave != NULL) {
-            ptWave->wPhaseStepPerSample = 0U;
-        }
-        return;
-    }
-
-    ptWave->wPhaseStepPerSample = (uint32_t)(
-        ((uint64_t)ptWave->wFrequencyHz << 32)
-        / ptThis->wSampleFrequencyHz);
+        && (ptThis->eState != DAC_DRIVER_STATE_UNINITIALIZED)
+        && (ptThis->eState != DAC_DRIVER_STATE_ERROR);
 }
 
 static dac_driver_result_t _dac_driver_SetFrequency(
@@ -64,6 +47,8 @@ static dac_driver_result_t _dac_driver_SetFrequency(
     dac_driver_wave_t *ptWave,
     uint32_t wFrequencyHz)
 {
+    uint32_t wPrimask;
+
     if ((ptThis == NULL) || (ptWave == NULL)) {
         return DAC_DRIVER_RESULT_NULL;
     }
@@ -74,10 +59,16 @@ static dac_driver_result_t _dac_driver_SetFrequency(
         return DAC_DRIVER_RESULT_INVALID_ARGUMENT;
     }
 
-    ptWave->wFrequencyHz = wFrequencyHz;
-    _dac_driver_UpdateSamplePhaseStep(ptThis, ptWave);
+    wPrimask = __get_PRIMASK();
+    __disable_irq();
+    ptWave->wPhaseStepPerSample = (uint32_t)(
+        ((uint64_t)wFrequencyHz << 32)
+        / ptThis->wSampleFrequencyHz);
     ptWave->wPhase = 0U;
     ptWave->bValueValid = false;
+    if (wPrimask == 0U) {
+        __enable_irq();
+    }
     return DAC_DRIVER_RESULT_OK;
 }
 
@@ -99,14 +90,12 @@ DAC_DRIVER_ALWAYS_INLINE void _dac_driver_FastWriteEnvelope(
     MDI_IO_Write(dac_wr, 1U);
 }
 
-void dac_driver_IsrStep(void)
+void dac_driver_IsrStep(dac_driver_t *ptThis)
 {
-    dac_driver_t *ptThis = s_ptDacDriver;
     uint8_t chCarrierValue;
     uint8_t chEnvelopeValue;
 
-    if ((ptThis == NULL) || (ptThis->eState != DAC_DRIVER_STATE_READY)
-        || !ptThis->bEnabled) {
+    if ((ptThis == NULL) || (ptThis->eState != DAC_DRIVER_STATE_RUNNING)) {
         return;
     }
 
@@ -143,7 +132,7 @@ dac_driver_result_t dac_driver_Init(
 
     (void)memset(ptThis, 0, sizeof(*ptThis));
     ptThis->eState = DAC_DRIVER_STATE_UNINITIALIZED;
-    if (ptCfg == NULL) {
+    if ((ptCfg == NULL) || (ptCfg->wSampleFrequencyHz == 0U)) {
         ptThis->eState = DAC_DRIVER_STATE_ERROR;
         return DAC_DRIVER_RESULT_INVALID_ARGUMENT;
     }
@@ -152,24 +141,13 @@ dac_driver_result_t dac_driver_Init(
     MDI_IO_Write(dac_ab, 0U);
     MDI_IO_Write(dac_parallel, s_chSineTable[0]);
     MDI_IO_Write(dac_oe, 1U);
-    ptThis->bEnabled = false;
-    ptThis->eState = DAC_DRIVER_STATE_READY;
-    s_ptDacDriver = ptThis;
-
-    if (ptCfg->wSampleFrequencyHz != 0U) {
-        if (MDI_TIMER_SetFrequency(dac_sample_timer,
-                ptCfg->wSampleFrequencyHz) != MDI_OK) {
-            ptThis->eState = DAC_DRIVER_STATE_ERROR;
-            return DAC_DRIVER_RESULT_IO;
-        }
-        ptThis->wSampleFrequencyHz = ptCfg->wSampleFrequencyHz;
-        _dac_driver_UpdateSamplePhaseStep(ptThis, &ptThis->tCarrier);
-        _dac_driver_UpdateSamplePhaseStep(ptThis, &ptThis->tEnvelope);
-        if (dac_driver_Start(ptThis) != DAC_DRIVER_RESULT_OK) {
-            ptThis->eState = DAC_DRIVER_STATE_ERROR;
-            return DAC_DRIVER_RESULT_IO;
-        }
+    if (MDI_TIMER_SetFrequency(dac_sample_timer,
+            ptCfg->wSampleFrequencyHz) != MDI_OK) {
+        ptThis->eState = DAC_DRIVER_STATE_ERROR;
+        return DAC_DRIVER_RESULT_IO;
     }
+    ptThis->wSampleFrequencyHz = ptCfg->wSampleFrequencyHz;
+    ptThis->eState = DAC_DRIVER_STATE_IDLE;
     return DAC_DRIVER_RESULT_OK;
 }
 
@@ -203,19 +181,16 @@ dac_driver_result_t dac_driver_Start(dac_driver_t *ptThis)
     if (!_dac_driver_IsReady(ptThis)) {
         return DAC_DRIVER_RESULT_NOT_READY;
     }
-    if (ptThis->bEnabled) {
+    if (ptThis->eState == DAC_DRIVER_STATE_RUNNING) {
         return DAC_DRIVER_RESULT_OK;
     }
     MDI_IO_Write(dac_oe, 0U);
-    ptThis->bEnabled = true;
-    if (!ptThis->bTimerRunning) {
-        if (MDI_TIMER_Start(dac_sample_timer) != MDI_OK) {
-            ptThis->bEnabled = false;
-            MDI_IO_Write(dac_oe, 1U);
-            return DAC_DRIVER_RESULT_IO;
-        }
-        ptThis->bTimerRunning = true;
+    if (MDI_TIMER_Start(dac_sample_timer) != MDI_OK) {
+        MDI_IO_Write(dac_oe, 1U);
+        ptThis->eState = DAC_DRIVER_STATE_ERROR;
+        return DAC_DRIVER_RESULT_IO;
     }
+    ptThis->eState = DAC_DRIVER_STATE_RUNNING;
     return DAC_DRIVER_RESULT_OK;
 }
 
@@ -227,13 +202,13 @@ dac_driver_result_t dac_driver_Stop(dac_driver_t *ptThis)
     if (!_dac_driver_IsReady(ptThis)) {
         return DAC_DRIVER_RESULT_NOT_READY;
     }
-    if (ptThis->bTimerRunning
-        && (MDI_TIMER_Stop(dac_sample_timer) != MDI_OK)) {
-        ptThis->eState = DAC_DRIVER_STATE_ERROR;
-        return DAC_DRIVER_RESULT_IO;
+    if (ptThis->eState == DAC_DRIVER_STATE_RUNNING) {
+        if (MDI_TIMER_Stop(dac_sample_timer) != MDI_OK) {
+            ptThis->eState = DAC_DRIVER_STATE_ERROR;
+            return DAC_DRIVER_RESULT_IO;
+        }
+        ptThis->eState = DAC_DRIVER_STATE_IDLE;
     }
-    ptThis->bTimerRunning = false;
     MDI_IO_Write(dac_oe, 1U);
-    ptThis->bEnabled = false;
     return DAC_DRIVER_RESULT_OK;
 }

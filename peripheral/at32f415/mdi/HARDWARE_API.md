@@ -18,7 +18,7 @@
 
 | 职责 | MDI 资源 | 物理资源 | 调用方式 | 备注 |
 |---|---|---|---|---|
-| DAC 采样定时器 | `dac_sample_timer` | TMR1，APB2，更新中断 `TMR1_OVF_TMR10_IRQHandler` | `MDI_TIMER_SetFrequency` / `MDI_TIMER_Start` / `MDI_TIMER_Stop` | 默认由 `mircoelec` 配置为 320 kHz；中断直接进入 `dac_driver_IsrStep()` |
+| DAC 采样定时器 | `dac_sample_timer` | TMR1，APB2，更新中断 `TMR1_OVF_TMR10_IRQHandler` | `MDI_TIMER_SetFrequency` / `MDI_TIMER_Start` / `MDI_TIMER_Stop` | 默认由 `mircoelec` 配置为 320 kHz；中断经 `mircoelec_IsrStep()` 传入对象后进入 `dac_driver_IsrStep(ptDac)` |
 | raw tick | `raw_tick` | `perf_counter::get_system_ticks()` | `MDI_TICK_Now(raw_tick)` | 当前 Master 主频按 backend 配置为 144 MHz |
 | DAC 并行数据 | `dac_parallel` | PA7、PA6、PA5、PA4、PA3、PA2、PA1、PA0 | `MDI_IO_Write(dac_parallel, value)` | 逻辑 bit0 对应 PA7，逻辑 bit7 对应 PA0；连接 TLC7528 DA0~DA7 |
 | DAC 通道选择 | `dac_ab` | PB2，TLC7528 DAC/AB | `MDI_IO_Write(dac_ab, value)` | 由 DAC driver 内部选择载波/包络通道 |
@@ -67,7 +67,7 @@ ADC 组资源：`adc_dma` 用于块发布/消费，`adc_mean` 用于均值更新
 - `peripheral_Init()` 在 [port_sys.c](../port_sys.c) 中完成时钟、GPIO、USART、ADC/DMA 和 TMR1 的芯片初始化。
 - `state.c` 只提供 ADC DMA、均值和串口流所需的板级共享存储；`service.c` 提供强定义的
   `mdi_Service()` / `mdi_Clock()` 回调，二者共同组成运行时 MDI 状态，不再生成旧式 `HW` 对象。
-- `TMR1_OVF_TMR10_IRQHandler` 清除更新标志后直接调用 `dac_driver_IsrStep()`。
+- `TMR1_OVF_TMR10_IRQHandler` 清除更新标志后调用 `mircoelec_IsrStep()`，由 Class 明确传入 DAC Driver 对象。
 - `DMA1_Channel1_IRQHandler` 只发布 ADC DMA 所有权；均值计算在板级 `mdi_Service()` 完成。
 - `modus_Run()` 先调用板级 `mdi_Service()`，再运行 MODUS 对象；`modus_Clock()` 先调用板级 `mdi_Clock()`，再运行对象时钟回调。
 - `USART1_IRQHandler` 和 `USART3_IRQHandler` 只进入对应 stream 的中断宏。

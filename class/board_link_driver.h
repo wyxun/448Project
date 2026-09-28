@@ -23,10 +23,6 @@ typedef enum {
 } board_link_driver_result_t;
 
 typedef struct {
-    uint32_t wReserved; /**< Reserved for protocol policy; transport is static MDI. */
-} board_link_driver_cfg_t;
-
-typedef struct {
     uint32_t wRxBytes;
     uint32_t wTxBytes;
     uint32_t wRxErrors;
@@ -39,13 +35,8 @@ typedef struct {
 } board_link_driver_t;
 
 board_link_driver_result_t board_link_driver_Init(
-    board_link_driver_t *ptThis,
-    const board_link_driver_cfg_t *ptCfg);
-board_link_driver_result_t board_link_driver_Run(
     board_link_driver_t *ptThis);
-board_link_driver_result_t board_link_driver_Clock(
-    board_link_driver_t *ptThis);
-board_link_driver_result_t board_link_driver_Write(
+int32_t board_link_driver_Write(
     board_link_driver_t *ptThis,
     const uint8_t *pchData,
     uint32_t wLength);

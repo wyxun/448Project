@@ -4,8 +4,8 @@
  */
 #include "instance.h"
 
-mdi_at32_stream_state_t g_at32_master_dwin_stream;
-mdi_at32_stream_state_t g_at32_master_board_link_stream;
+mdi_uart_stream_state_t g_at32_master_dwin_stream;
+mdi_uart_stream_state_t g_at32_master_board_link_stream;
 uint8_t g_at32_master_dwin_tx[AT32_MASTER_STREAM_BUFFER_SIZE];
 uint8_t g_at32_master_dwin_rx[AT32_MASTER_STREAM_BUFFER_SIZE];
 uint8_t g_at32_master_board_link_tx[AT32_MASTER_STREAM_BUFFER_SIZE];

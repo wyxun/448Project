@@ -14,7 +14,7 @@
 #include "at32f415_usart.h"
 #include "mdi/core/contract.h"
 #include "mdi/core/tick.h"
-#include "mringbuf.h"
+#include "mdi/feature/uart_stream.h"
 
 /* This board currently runs HEXT(8 MHz) / 2 * PLL36 = 144 MHz. */
 #ifndef AT32F415_CORE_CLOCK_HZ
@@ -25,15 +25,6 @@
  * declaration at the backend boundary prevents drivers from including the
  * perf_counter header just to read a timestamp. */
 extern int64_t get_system_ticks(void);
-
-typedef struct {
-    usart_type *ptUsart;
-    mringbuf_t tTxQueue;
-    mringbuf_t tRxQueue;
-    volatile uint8_t chTxBusy;
-    volatile uint8_t chRxState;
-    volatile uint8_t chRxGuardMs;
-} mdi_at32_stream_state_t;
 
 /* Base-timer capability used by the master DAC sample clock.  The timer is
  * a compile-time MDI resource; no callback table or runtime private object is
@@ -53,14 +44,14 @@ typedef struct {
         if (tClocks.CLOCK_FIELD != tClocks.ahb_freq) {                           \
             wTimerClock *= 2U;                                                   \
         }                                                                        \
-        wPeriod = wTimerClock / wHz;                                              \
+        wPeriod = wTimerClock / wHz;                                             \
         if ((wPeriod < 2U) || (wPeriod > UINT32_MAX)) {                          \
             return MDI_RANGE;                                                    \
         }                                                                        \
         tmr_base_init((TIMER), wPeriod - 1U, 0U);                                \
-        tmr_cnt_dir_set((TIMER), TMR_COUNT_UP);                                 \
-        tmr_clock_source_div_set((TIMER), TMR_CLOCK_DIV1);                      \
-        tmr_flag_clear((TIMER), TMR_OVF_FLAG);                                  \
+        tmr_cnt_dir_set((TIMER), TMR_COUNT_UP);                                  \
+        tmr_clock_source_div_set((TIMER), TMR_CLOCK_DIV1);                       \
+        tmr_flag_clear((TIMER), TMR_OVF_FLAG);                                   \
         return MDI_OK;                                                           \
     }                                                                            \
     MDI_INLINE mdi_status_t MDI_OP(NAME, _timer_Start)(void)                     \
@@ -89,91 +80,30 @@ typedef struct {
         return (mdi_tick_t)(NOW_FN());                                           \
     }
 
-#define MDI_AT32_STREAM_BIND(NAME, STATE)                                      \
-    MDI_INLINE int32_t MDI_OP(NAME, _stream_Write)(                            \
-        const uint8_t *pchData, uint32_t wLength)                              \
-    {                                                                           \
-        mdi_at32_stream_state_t *pt = &(STATE);                                \
-        uint32_t wIndex = 0U;                                                   \
-        while (wIndex < wLength) {                                              \
-            if (mringbuf_Write(&pt->tTxQueue, pchData[wIndex]) == 0U) {         \
-                break;                                                          \
-            }                                                                   \
-            ++wIndex;                                                           \
-        }                                                                       \
-        if ((pt->chTxBusy == 0U) &&                                            \
-            (mringbuf_GetUsed(&pt->tTxQueue) > 0U)) {                           \
-            uint8_t ch = 0U;                                                    \
-            if (mringbuf_Read(&pt->tTxQueue, &ch) == 1U) {                       \
-                usart_data_transmit(pt->ptUsart, ch);                           \
-                pt->chTxBusy = 1U;                                              \
-            }                                                                   \
-        }                                                                       \
-        return (int32_t)wIndex;                                                  \
-    }                                                                           \
-    MDI_INLINE int32_t MDI_OP(NAME, _stream_Read)(                             \
-        uint8_t *pchData, uint32_t wLength)                                     \
-    {                                                                           \
-        mdi_at32_stream_state_t *pt = &(STATE);                                \
-        uint32_t wIndex = 0U;                                                   \
-        if ((pt->chRxState != 2U) || (wLength == 0U)) { return 0; }              \
-        while (wIndex < wLength) {                                              \
-            if (mringbuf_Read(&pt->tRxQueue, &pchData[wIndex]) == 0U) {          \
-                break;                                                          \
-            }                                                                   \
-            ++wIndex;                                                           \
-        }                                                                       \
-        pt->chRxState = 0U;                                                     \
-        return (int32_t)wIndex;                                                  \
-    }                                                                           \
-    MDI_INLINE uint32_t MDI_OP(NAME, _stream_Available)(void)                   \
-    {                                                                           \
-        return (uint32_t)mringbuf_GetUsed(&(STATE).tRxQueue);                   \
-    }                                                                           \
-    MDI_INLINE bool MDI_OP(NAME, _stream_IsBusy)(void)                          \
-    {                                                                           \
-        return (STATE).chTxBusy != 0U;                                          \
-    }
+/* AT32F415 USART primitives consumed by the generic MDI UART stream feature.
+ * No queue or stream state is kept in this chip backend. */
+#define MDI_AT32_USART_RX_READY(UART) \
+    (usart_interrupt_flag_get((UART), USART_RDBF_FLAG) != RESET)
+#define MDI_AT32_USART_RX_READ(UART) \
+    usart_data_receive((UART))
+#define MDI_AT32_USART_TX_COMPLETE(UART) \
+    (usart_flag_get((UART), USART_TDC_FLAG) != RESET)
+#define MDI_AT32_USART_TX_WRITE(UART, BYTE) \
+    usart_data_transmit((UART), (BYTE))
+#define MDI_AT32_USART_TX_CLEAR(UART) \
+    usart_flag_clear((UART), USART_TDC_FLAG)
+#define MDI_AT32_USART_TX_IRQ_ENABLE(UART) \
+    usart_interrupt_enable((UART), USART_TDC_INT, TRUE)
+#define MDI_AT32_USART_TX_IRQ_DISABLE(UART) \
+    usart_interrupt_enable((UART), USART_TDC_INT, FALSE)
 
-#define MDI_AT32_STREAM_INIT(STATE, USART, TXBUF, TXSIZE, RXBUF, RXSIZE)        \
-    do {                                                                        \
-        (STATE).ptUsart = (USART);                                              \
-        mringbuf_Init(&(STATE).tTxQueue, (TXBUF), (uint16_t)(TXSIZE));           \
-        mringbuf_Init(&(STATE).tRxQueue, (RXBUF), (uint16_t)(RXSIZE));           \
-        (STATE).chTxBusy = 0U;                                                  \
-        (STATE).chRxState = 0U;                                                  \
-        (STATE).chRxGuardMs = 0U;                                               \
-    } while (0)
-
-#define MDI_AT32_STREAM_TICK_1MS(STATE)                                         \
-    do {                                                                        \
-        if ((STATE).chRxState == 1U) {                                         \
-            if ((STATE).chRxGuardMs > 0U) { --(STATE).chRxGuardMs; }            \
-            else { (STATE).chRxState = 2U; }                                    \
-        }                                                                           \
-    } while (0)
-
-#define MDI_AT32_STREAM_IRQ(STATE)                                              \
-    do {                                                                        \
-        uint8_t chRx = 0U;                                                      \
-        uint8_t chTx = 0U;                                                      \
-        if (usart_interrupt_flag_get((STATE).ptUsart, USART_RDBF_FLAG) != RESET) \
-        {                                                                       \
-            chRx = usart_data_receive((STATE).ptUsart);                        \
-            (void)mringbuf_Write(&(STATE).tRxQueue, chRx);                      \
-            (STATE).chRxGuardMs = 5U;                                           \
-            (STATE).chRxState = 1U;                                             \
-        }                                                                       \
-        if (usart_flag_get((STATE).ptUsart, USART_TDC_FLAG) != RESET) {         \
-            usart_flag_clear((STATE).ptUsart, USART_TDC_FLAG);                  \
-            if (mringbuf_Read(&(STATE).tTxQueue, &chTx) == 1U) {                \
-                usart_data_transmit((STATE).ptUsart, chTx);                     \
-                (STATE).chTxBusy = 1U;                                          \
-            } else {                                                            \
-                (STATE).chTxBusy = 0U;                                          \
-            }                                                                   \
-        }                                                                       \
-    } while (0)
+#define MDI_AT32_UART_STREAM_BIND(NAME, STATE, UART)                           \
+    MDI_UART_STREAM_BIND(NAME, STATE, UART,                                   \
+                         MDI_AT32_USART_RX_READY, MDI_AT32_USART_RX_READ,      \
+                         MDI_AT32_USART_TX_COMPLETE,                           \
+                         MDI_AT32_USART_TX_WRITE, MDI_AT32_USART_TX_CLEAR,      \
+                         MDI_AT32_USART_TX_IRQ_ENABLE,                         \
+                         MDI_AT32_USART_TX_IRQ_DISABLE)
 
 /* Start one software-triggered ADC/DMA block.  BUFFER and the publication
  * counter are compile-time resources from instance.h; no runtime object or

@@ -14,8 +14,8 @@ static bool s_bAdcPrimed;
 
 void mdi_Clock(void)
 {
-    MDI_AT32_STREAM_TICK_1MS(g_at32_master_dwin_stream);
-    MDI_AT32_STREAM_TICK_1MS(g_at32_master_board_link_stream);
+    MDI_UART_STREAM_TICK_1MS(dwin_stream);
+    MDI_UART_STREAM_TICK_1MS(board_link_stream);
 }
 
 void mdi_Service(void)

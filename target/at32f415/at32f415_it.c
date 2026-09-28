@@ -10,6 +10,7 @@
 #include "mdebug_cm.h"
 #include "mdi/instance.h"
 #include "dac_driver.h"
+#include "mircoelec.h"
 
 extern void modus_Clock(void);
 
@@ -36,8 +37,8 @@ void DMA1_Channel1_IRQHandler(void)
         adc_dma, ADC1, DMA1_CHANNEL1, DMA1_DTERR1_FLAG, DMA1_FDT1_FLAG,
         g_at32_master_adc_dma_busy);
 }
-void USART1_IRQHandler(void) { MDI_AT32_STREAM_IRQ(g_at32_master_dwin_stream); }
-void USART3_IRQHandler(void) { MDI_AT32_STREAM_IRQ(g_at32_master_board_link_stream); }
+void USART1_IRQHandler(void) { MDI_UART_STREAM_IRQ(dwin_stream); }
+void USART3_IRQHandler(void) { MDI_UART_STREAM_IRQ(board_link_stream); }
 void UART4_IRQHandler(void) { }
 
 void WWDT_IRQHandler(void) { }
@@ -46,7 +47,7 @@ void TMR1_OVF_TMR10_IRQHandler(void)
 {
     if (tmr_interrupt_flag_get(TMR1, TMR_OVF_FLAG) != RESET) {
         tmr_flag_clear(TMR1, TMR_OVF_FLAG);
-        dac_driver_IsrStep();
+        mircoelec_IsrStep();
     }
 }
 void TMR1_CH_IRQHandler(void) { }

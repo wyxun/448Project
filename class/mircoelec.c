@@ -25,7 +25,6 @@ int mircoelec_Init(uintptr_t wObjectAddr, uintptr_t wObjectCfgAddr)
     mircoelec_t *ptThis = (mircoelec_t *)wObjectAddr;
     const mircoelec_cfg_t *ptCfg =
         (const mircoelec_cfg_t *)wObjectCfgAddr;
-    dac_driver_cfg_t tDacCfg;
     int nResult;
 
     if ((ptThis == NULL) || (ptCfg == NULL)) {
@@ -36,11 +35,7 @@ int mircoelec_Init(uintptr_t wObjectAddr, uintptr_t wObjectCfgAddr)
     ptThis->ptBase = &s_tMircoelecBase;
     ptThis->eState = MIRCROELEC_STATE_UNINITIALIZED;
 
-    tDacCfg = ptCfg->tDacCfg;
-    if (tDacCfg.wSampleFrequencyHz == 0U) {
-        tDacCfg.wSampleFrequencyHz = MIRCROELEC_DAC_SAMPLE_FREQUENCY_HZ;
-    }
-    if (dac_driver_Init(&ptThis->tDac, &tDacCfg)
+    if (dac_driver_Init(&ptThis->tDac, &ptCfg->tDacCfg)
         != DAC_DRIVER_RESULT_OK) {
         ptThis->eState = MIRCROELEC_STATE_ERROR;
         return MODUS_EFAIL;
@@ -53,8 +48,20 @@ int mircoelec_Init(uintptr_t wObjectAddr, uintptr_t wObjectCfgAddr)
         return nResult;
     }
 
+    if (dac_driver_Start(&ptThis->tDac) != DAC_DRIVER_RESULT_OK) {
+        ptThis->eState = MIRCROELEC_STATE_ERROR;
+        return MODUS_EFAIL;
+    }
+
     ptThis->eState = MIRCROELEC_STATE_READY;
     return MODUS_SUCCESS;
+}
+
+extern mircoelec_t tMircoelec;
+
+void mircoelec_IsrStep(void)
+{
+    dac_driver_IsrStep(&tMircoelec.tDac);
 }
 
 int mircoelec_Run(uintptr_t wObjectAddr)

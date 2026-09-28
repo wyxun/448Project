@@ -22,7 +22,8 @@ typedef enum {
 
 typedef enum {
     DAC_DRIVER_STATE_UNINITIALIZED = 0,
-    DAC_DRIVER_STATE_READY,
+    DAC_DRIVER_STATE_IDLE,
+    DAC_DRIVER_STATE_RUNNING,
     DAC_DRIVER_STATE_ERROR,
 } dac_driver_state_t;
 
@@ -32,7 +33,6 @@ typedef struct {
 } dac_driver_cfg_t;
 
 typedef struct {
-    uint32_t wFrequencyHz;
     uint32_t wPhase;
     uint32_t wPhaseStepPerSample;
     uint8_t chLastValue;
@@ -43,8 +43,6 @@ typedef struct {
     dac_driver_wave_t tCarrier;
     dac_driver_wave_t tEnvelope;
     uint32_t wSampleFrequencyHz;
-    bool bEnabled;
-    bool bTimerRunning;
     dac_driver_state_t eState;
 } dac_driver_t;
 
@@ -60,8 +58,8 @@ dac_driver_result_t dac_driver_SetEnvelopeFrequency(
     dac_driver_t *ptThis,
     uint32_t wFrequencyHz);
 
-/* 由板级 TMR1 中断直接调用，不经过回调对象或上下文指针。 */
-void dac_driver_IsrStep(void);
+/* 由板级 TMR1 中断直接调用，消费对象中已换算的执行参数。 */
+void dac_driver_IsrStep(dac_driver_t *ptThis);
 
 /* 重新使能 TLC7528 输出并启动已配置的采样定时器。 */
 dac_driver_result_t dac_driver_Start(dac_driver_t *ptThis);

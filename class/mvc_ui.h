@@ -33,7 +33,6 @@ typedef struct {
 
 int mvc_ui_Init(mvc_ui_t *ptThis, const mvc_ui_cfg_t *ptCfg);
 int mvc_ui_Run(mvc_ui_t *ptThis);
-int mvc_ui_Clock(mvc_ui_t *ptThis);
 
 int mvc_ui_SetPage(mvc_ui_t *ptThis, uint16_t hwPageId);
 int mvc_ui_SetN16Data(mvc_ui_t *ptThis,

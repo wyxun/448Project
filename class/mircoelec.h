@@ -23,5 +23,6 @@ typedef struct {
 int mircoelec_Init(uintptr_t wObjectAddr, uintptr_t wObjectCfgAddr);
 int mircoelec_Run(uintptr_t wObjectAddr);
 int mircoelec_Clock(uintptr_t wObjectAddr);
+void mircoelec_IsrStep(void);
 
 #endif /* MIRCROELEC_CLASS_H */

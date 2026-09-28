@@ -12,8 +12,8 @@ MDI_AT32_TIMER_BIND(dac_sample_timer, TMR1, TMR1_OVF_TMR10_IRQn, apb2_freq)
 MDI_AT32_TICK_BIND(raw_tick, get_system_ticks)
 
 #define AT32_MASTER_STREAM_BUFFER_SIZE 256U
-extern mdi_at32_stream_state_t g_at32_master_dwin_stream;
-extern mdi_at32_stream_state_t g_at32_master_board_link_stream;
+extern mdi_uart_stream_state_t g_at32_master_dwin_stream;
+extern mdi_uart_stream_state_t g_at32_master_board_link_stream;
 extern uint8_t g_at32_master_dwin_tx[AT32_MASTER_STREAM_BUFFER_SIZE];
 extern uint8_t g_at32_master_dwin_rx[AT32_MASTER_STREAM_BUFFER_SIZE];
 extern uint8_t g_at32_master_board_link_tx[AT32_MASTER_STREAM_BUFFER_SIZE];
@@ -142,7 +142,7 @@ MDI_ADC_CHANNEL_MEAN_BIND(adc_ntc4, adc_mean, g_at32_master_adc_mean[3],
 MDI_ADC_CHANNEL_MEAN_BIND(adc_bioadc, adc_mean, g_at32_master_adc_mean[4],
                           0xFFFFU, 0U, g_at32_master_adc_sequence)
 
-MDI_AT32_STREAM_BIND(dwin_stream, g_at32_master_dwin_stream)
-MDI_AT32_STREAM_BIND(board_link_stream, g_at32_master_board_link_stream)
+MDI_AT32_UART_STREAM_BIND(dwin_stream, g_at32_master_dwin_stream, USART1)
+MDI_AT32_UART_STREAM_BIND(board_link_stream, g_at32_master_board_link_stream, USART3)
 
 #endif /* M448_MASTER_AT32F415_MDI_INSTANCE_H */

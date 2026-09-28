@@ -74,7 +74,6 @@ dwin_driver_result_t dwin_driver_Init(
     dwin_driver_t *ptThis,
     const dwin_driver_cfg_t *ptCfg);
 dwin_driver_result_t dwin_driver_Run(dwin_driver_t *ptThis);
-dwin_driver_result_t dwin_driver_Clock(dwin_driver_t *ptThis);
 dwin_driver_result_t dwin_driver_RegisterCallback(
     dwin_driver_t *ptThis,
     dwin_driver_receive_fn_t fnCallback,

@@ -252,13 +252,12 @@ dwin_driver_result_t dwin_driver_Init(
         return DWIN_DRIVER_RESULT_INVALID_ARGUMENT;
     }
 
-    {
-        uint32_t wTimeoutMs = (ptCfg->wFrameTimeoutMs != 0U)
-                            ? ptCfg->wFrameTimeoutMs
-                            : DWIN_DRIVER_FRAME_TIMEOUT_MS;
-        ptThis->wFrameTimeoutTick =
-            (uint64_t)wTimeoutMs * DWIN_DRIVER_TICKS_PER_MS;
+    if (ptCfg->wFrameTimeoutMs == 0U) {
+        ptThis->eState = DWIN_DRIVER_STATE_ERROR;
+        return DWIN_DRIVER_RESULT_INVALID_ARGUMENT;
     }
+    ptThis->wFrameTimeoutTick =
+        (uint64_t)ptCfg->wFrameTimeoutMs * DWIN_DRIVER_TICKS_PER_MS;
     ptThis->eState = DWIN_DRIVER_STATE_READY;
     return DWIN_DRIVER_RESULT_OK;
 }
@@ -370,18 +369,6 @@ dwin_driver_result_t dwin_driver_Run(dwin_driver_t *ptThis)
         hwFramesDone++;
     }
 
-    return DWIN_DRIVER_RESULT_OK;
-}
-
-dwin_driver_result_t dwin_driver_Clock(dwin_driver_t *ptThis)
-{
-    if (ptThis == NULL) {
-        return DWIN_DRIVER_RESULT_NULL;
-    }
-    if (!_dwin_driver_IsReady(ptThis)) {
-        return (ptThis->eState == DWIN_DRIVER_STATE_UNINITIALIZED)
-             ? DWIN_DRIVER_RESULT_NOT_READY : DWIN_DRIVER_RESULT_FAULT;
-    }
     return DWIN_DRIVER_RESULT_OK;
 }
 

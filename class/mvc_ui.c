@@ -105,14 +105,6 @@ int mvc_ui_Run(mvc_ui_t *ptThis)
     return 0;
 }
 
-int mvc_ui_Clock(mvc_ui_t *ptThis)
-{
-    if ((ptThis == NULL) || (ptThis->eState == MVC_UI_STATE_ERROR)) {
-        return -1;
-    }
-    return 0;
-}
-
 int mvc_ui_SetPage(mvc_ui_t *ptThis, uint16_t hwPageId)
 {
     if ((ptThis == NULL) || (ptThis->eState != MVC_UI_STATE_READY)) {
