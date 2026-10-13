@@ -6,6 +6,7 @@
 #define M448_MASTER_AT32F415_MDI_INSTANCE_H
 
 #include "mdi/mdi.h"
+#include "mdi/feature/adc_mean.h"
 #include "backend.h"
 
 MDI_AT32_TIMER_BIND(dac_sample_timer, TMR1, TMR1_OVF_TMR10_IRQn, apb2_freq)
@@ -20,10 +21,10 @@ extern uint8_t g_at32_master_board_link_tx[AT32_MASTER_STREAM_BUFFER_SIZE];
 extern uint8_t g_at32_master_board_link_rx[AT32_MASTER_STREAM_BUFFER_SIZE];
 
 #define AT32_MASTER_DAC_PINS(X, V, ...) \
-    X(V, 0, 7, 0) X(V, 1, 6, 0) \
-    X(V, 2, 5, 0) X(V, 3, 4, 0) \
-    X(V, 4, 3, 0) X(V, 5, 2, 0) \
-    X(V, 6, 1, 0) X(V, 7, 0, 0)
+    X(V, 0, 0, 0) X(V, 1, 1, 0) \
+    X(V, 2, 2, 0) X(V, 3, 3, 0) \
+    X(V, 4, 4, 0) X(V, 5, 5, 0) \
+    X(V, 6, 6, 0) X(V, 7, 7, 0)
 #define AT32_MASTER_DAC_PORTS(X, V) \
     X(V, GPIOA, AT32_MASTER_DAC_PINS)
 MDI_AT32_IO_BIND(dac_parallel, 8, AT32_MASTER_DAC_PORTS)
@@ -106,7 +107,6 @@ extern volatile uint32_t g_at32_master_adc_dma_published;
 extern volatile uint32_t g_at32_master_adc_dma_consumed;
 extern volatile uint32_t g_at32_master_adc_sequence;
 extern volatile bool g_at32_master_adc_valid;
-extern volatile uint32_t g_at32_master_adc_rate_hz;
 extern volatile uint16_t
     g_at32_master_adc_mean[AT32_MASTER_ADC_INPUT_COUNT];
 extern volatile bool g_at32_master_adc_dma_busy;
@@ -124,23 +124,21 @@ MDI_ADC_MEAN_GROUP_BIND(adc_mean, adc_dma, g_at32_master_adc_dma,
                         AT32_MASTER_ADC_CHANNELS,
                         g_at32_master_adc_mean,
                         g_at32_master_adc_sequence,
-                        g_at32_master_adc_valid,
-                        g_at32_master_adc_rate_hz,
-                        1000000U)
+                        g_at32_master_adc_valid)
 MDI_AT32_ADC_DMA_TRIGGER_BIND(
     adc_mean, ADC1, DMA1_CHANNEL1, g_at32_master_adc_dma,
     AT32_MASTER_ADC_BLOCK_SIZE, g_at32_master_adc_dma_published,
     g_at32_master_adc_dma_busy)
-MDI_ADC_CHANNEL_MEAN_BIND(adc_ntc1, adc_mean, g_at32_master_adc_mean[0],
-                          0xFFFFU, 0U, g_at32_master_adc_sequence)
-MDI_ADC_CHANNEL_MEAN_BIND(adc_ntc2, adc_mean, g_at32_master_adc_mean[1],
-                          0xFFFFU, 0U, g_at32_master_adc_sequence)
-MDI_ADC_CHANNEL_MEAN_BIND(adc_ntc3, adc_mean, g_at32_master_adc_mean[2],
-                          0xFFFFU, 0U, g_at32_master_adc_sequence)
-MDI_ADC_CHANNEL_MEAN_BIND(adc_ntc4, adc_mean, g_at32_master_adc_mean[3],
-                          0xFFFFU, 0U, g_at32_master_adc_sequence)
-MDI_ADC_CHANNEL_MEAN_BIND(adc_bioadc, adc_mean, g_at32_master_adc_mean[4],
-                          0xFFFFU, 0U, g_at32_master_adc_sequence)
+MDI_ADC_CHANNEL_VIEW_BIND(adc_ntc1, g_at32_master_adc_mean[0],
+    0xFFFU, 0U, g_at32_master_adc_sequence, g_at32_master_adc_valid)
+MDI_ADC_CHANNEL_VIEW_BIND(adc_ntc2, g_at32_master_adc_mean[1],
+    0xFFFU, 0U, g_at32_master_adc_sequence, g_at32_master_adc_valid)
+MDI_ADC_CHANNEL_VIEW_BIND(adc_ntc3, g_at32_master_adc_mean[2],
+    0xFFFU, 0U, g_at32_master_adc_sequence, g_at32_master_adc_valid)
+MDI_ADC_CHANNEL_VIEW_BIND(adc_ntc4, g_at32_master_adc_mean[3],
+    0xFFFU, 0U, g_at32_master_adc_sequence, g_at32_master_adc_valid)
+MDI_ADC_CHANNEL_VIEW_BIND(adc_bioadc, g_at32_master_adc_mean[4],
+    0xFFFU, 0U, g_at32_master_adc_sequence, g_at32_master_adc_valid)
 
 MDI_AT32_UART_STREAM_BIND(dwin_stream, g_at32_master_dwin_stream, USART1)
 MDI_AT32_UART_STREAM_BIND(board_link_stream, g_at32_master_board_link_stream, USART3)

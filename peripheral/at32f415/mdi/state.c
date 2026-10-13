@@ -17,6 +17,5 @@ volatile uint32_t g_at32_master_adc_dma_published = 0U;
 volatile uint32_t g_at32_master_adc_dma_consumed = 0U;
 volatile uint32_t g_at32_master_adc_sequence = 0U;
 volatile bool g_at32_master_adc_valid = false;
-volatile uint32_t g_at32_master_adc_rate_hz = 100U;
 volatile uint16_t g_at32_master_adc_mean[AT32_MASTER_ADC_INPUT_COUNT];
 volatile bool g_at32_master_adc_dma_busy = false;

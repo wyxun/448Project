@@ -145,11 +145,14 @@ fsm_rt_t template_class_Run(template_class_t *ptThis)
 ```
 
 #### 5. 硬件调用：MDI 接口
-业务层直接包含 `mdi/mdi.h`，使用编译期绑定的 MDI 原语：
+业务层包含 `mdi/mdi.h` 与板级 `mdi/instance.h`，使用编译期绑定的 MDI 原语：
 ```c
 // 示例：操控继电器或串口（与特定芯片引脚解耦）
-MDI_IO_Write(board_led, 1U);
-MDI_STREAM_Write(board_link_stream, data, length);
+MDI_IO_Write(status_led, 1U);
+uint32_t written = 0U;
+mdi_status_t status = MDI_STREAM_Write(
+    board_link_stream, data, length, &written);
+// 检查 status 和 written；短写时仅重试尚未入队的后缀。
 ```
 
 | 常用宏 | 对应操作 |

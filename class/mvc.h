@@ -22,6 +22,9 @@ typedef struct {
     dwin_driver_t tDwin;
     mvc_ui_t tUi;
     mvc_state_t eState;
+    dwin_driver_result_t eDwinError;
+    uint8_t chRunPt;
+    int64_t lAdcLogDeadline;
 } mvc_t;
 
 int mvc_Init(uintptr_t wObjectAddr, uintptr_t wObjectCfgAddr);

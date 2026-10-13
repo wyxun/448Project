@@ -50,13 +50,17 @@ dac_driver_result_t dac_driver_Init(
     dac_driver_t *ptThis,
     const dac_driver_cfg_t *ptCfg);
 
-dac_driver_result_t dac_driver_SetCarrierFrequency(
+/**
+ * @brief Validate and set carrier and envelope frequencies as one update.
+ * @param ptThis Caller-owned module instance.
+ * @param wCarrierFrequencyHz DACB/carrier frequency in Hz.
+ * @param wEnvelopeFrequencyHz DACA/envelope frequency in Hz.
+ * @return Module result code; invalid inputs do not update either channel.
+ */
+dac_driver_result_t dac_driver_SetFrequencies(
     dac_driver_t *ptThis,
-    uint32_t wFrequencyHz);
-
-dac_driver_result_t dac_driver_SetEnvelopeFrequency(
-    dac_driver_t *ptThis,
-    uint32_t wFrequencyHz);
+    uint32_t wCarrierFrequencyHz,
+    uint32_t wEnvelopeFrequencyHz);
 
 /* 由板级 TMR1 中断直接调用，消费对象中已换算的执行参数。 */
 void dac_driver_IsrStep(dac_driver_t *ptThis);

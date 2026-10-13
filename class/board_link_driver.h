@@ -20,6 +20,7 @@ typedef enum {
     BOARD_LINK_DRIVER_RESULT_NOT_READY,
     BOARD_LINK_DRIVER_RESULT_IO,
     BOARD_LINK_DRIVER_RESULT_FAULT,
+    BOARD_LINK_DRIVER_RESULT_OVERRUN,
 } board_link_driver_result_t;
 
 typedef struct {
@@ -36,14 +37,16 @@ typedef struct {
 
 board_link_driver_result_t board_link_driver_Init(
     board_link_driver_t *ptThis);
-int32_t board_link_driver_Write(
+board_link_driver_result_t board_link_driver_Write(
     board_link_driver_t *ptThis,
     const uint8_t *pchData,
-    uint32_t wLength);
-int32_t board_link_driver_Read(
+    uint32_t wLength,
+    uint32_t *pwCount);
+board_link_driver_result_t board_link_driver_Read(
     board_link_driver_t *ptThis,
     uint8_t *pchData,
-    uint32_t wLength);
+    uint32_t wLength,
+    uint32_t *pwCount);
 board_link_driver_result_t board_link_driver_GetStats(
     const board_link_driver_t *ptThis,
     board_link_driver_stats_t *ptStats);

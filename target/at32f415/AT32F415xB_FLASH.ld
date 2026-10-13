@@ -72,6 +72,16 @@ SECTIONS
     . = ALIGN(4);
   } >FLASH
 
+  .init_infos :
+  {
+    . = ALIGN(4);
+    __start_init_infos = .;
+    KEEP(*(init_infos))
+    KEEP(*(init_infos*))
+    __stop_init_infos = .;
+    . = ALIGN(4);
+  } >FLASH
+
   .ARM.extab   : { *(.ARM.extab* .gnu.linkonce.armextab.*) } >FLASH
   .ARM : {
     __exidx_start = .;

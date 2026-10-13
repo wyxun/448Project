@@ -45,14 +45,20 @@ typedef struct {
     uint32_t wBadLen;
     uint32_t wTimeout;
     uint32_t wDropped;
+    uint32_t wOverrun;
 } dwin_driver_stats_t;
 
+/** Borrowed view: data is valid only during the receive callback. */
+typedef struct {
+    uint8_t chCommand;
+    uint16_t hwAddress;
+    const uint8_t *pchData;
+    uint16_t hwLength;
+    bool bDispatch;
+} dwin_driver_frame_t;
+
 typedef void (*dwin_driver_receive_fn_t)(
-    void *pContext,
-    uint8_t chCmd,
-    uint16_t hwAddress,
-    uint8_t *pchData,
-    uint16_t hwLength);
+    void *pContext, const dwin_driver_frame_t *ptFrame);
 
 typedef struct {
     uint32_t wFrameTimeoutMs;
@@ -64,7 +70,8 @@ typedef struct {
     uint8_t chRxBuf[DWIN_DRIVER_RX_BUFFER_SIZE];
     uint8_t chTxBuf[DWIN_DRIVER_TX_BUFFER_SIZE];
     uint16_t hwRxPos;
-    uint64_t wFrameTimeoutTick;
+    uint32_t wFrameTimeoutMs;
+    int64_t lRxDeadline;
     bool bFrameInProgress;
     dwin_driver_stats_t tStats;
     dwin_driver_state_t eState;

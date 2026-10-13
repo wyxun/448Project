@@ -46,7 +46,7 @@ static void adc_init(void)
     adc_reset(ADC1);
     adc_base_default_para_init(&tAdcBase);
     tAdcBase.sequence_mode = TRUE;
-    tAdcBase.repeat_mode = FALSE;
+    tAdcBase.repeat_mode = TRUE;
     tAdcBase.data_align = ADC_RIGHT_ALIGNMENT;
     tAdcBase.ordinary_channel_length = AT32_MASTER_ADC_INPUT_COUNT;
     adc_base_config(ADC1, &tAdcBase);
@@ -144,7 +144,7 @@ static void usart_config(usart_type *ptUsart, uint32_t wBaud,
     crm_periph_clock_enable((ptUsart == USART1)
                                 ? CRM_USART1_PERIPH_CLOCK
                                 : CRM_USART3_PERIPH_CLOCK, TRUE);
-    nvic_irq_enable(eIrq, 2U, 0U);
+    nvic_irq_disable(eIrq);
     usart_init(ptUsart, wBaud, USART_DATA_8BITS, USART_STOP_1_BIT);
     usart_transmitter_enable(ptUsart, TRUE);
     usart_receiver_enable(ptUsart, TRUE);
@@ -155,6 +155,7 @@ static void usart_config(usart_type *ptUsart, uint32_t wBaud,
     usart_flag_clear(ptUsart, USART_TDBE_FLAG);
     usart_flag_clear(ptUsart, USART_TDC_FLAG);
     usart_flag_clear(ptUsart, USART_RDBF_FLAG);
+    nvic_irq_enable(eIrq, 2U, 0U);
 }
 
 static void serial_gpio_init(void)
@@ -178,18 +179,22 @@ static void serial_init(void)
     crm_periph_clock_enable(CRM_USART1_PERIPH_CLOCK, TRUE);
     crm_periph_clock_enable(CRM_USART3_PERIPH_CLOCK, TRUE);
     serial_gpio_init();
-    usart_config(USART1, 115200U, USART1_IRQn);
-    usart_config(USART3, 4800U, USART3_IRQn);
-    (void)MDI_UART_STREAM_INIT(g_at32_master_dwin_stream,
-                               g_at32_master_dwin_tx,
-                               AT32_MASTER_STREAM_BUFFER_SIZE,
-                               g_at32_master_dwin_rx,
-                               AT32_MASTER_STREAM_BUFFER_SIZE);
-    (void)MDI_UART_STREAM_INIT(g_at32_master_board_link_stream,
-                               g_at32_master_board_link_tx,
-                               AT32_MASTER_STREAM_BUFFER_SIZE,
-                               g_at32_master_board_link_rx,
-                               AT32_MASTER_STREAM_BUFFER_SIZE);
+    nvic_irq_disable(USART1_IRQn);
+    nvic_irq_disable(USART3_IRQn);
+    if (MDI_UART_STREAM_INIT(g_at32_master_dwin_stream,
+                            g_at32_master_dwin_tx,
+                            AT32_MASTER_STREAM_BUFFER_SIZE,
+                            g_at32_master_dwin_rx,
+                            AT32_MASTER_STREAM_BUFFER_SIZE) == MDI_OK) {
+        usart_config(USART1, 115200U, USART1_IRQn);
+    }
+    if (MDI_UART_STREAM_INIT(g_at32_master_board_link_stream,
+                            g_at32_master_board_link_tx,
+                            AT32_MASTER_STREAM_BUFFER_SIZE,
+                            g_at32_master_board_link_rx,
+                            AT32_MASTER_STREAM_BUFFER_SIZE) == MDI_OK) {
+        usart_config(USART3, 4800U, USART3_IRQn);
+    }
 }
 
 static void dac_sample_timer_init(void)

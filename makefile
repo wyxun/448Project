@@ -20,7 +20,8 @@ endif
 TARGET_CHIP ?= at32f415
 CLASS_SOURCES = class/template_class.c template_driver.c \
                 class/mircoelec.c class/mvc.c class/dwin_driver.c \
-                class/mvc_ui.c class/board_link_driver.c class/dac_driver.c
+                class/mvc_ui.c class/board_link_driver.c class/dac_driver.c \
+                class/mircoelec_waveform.c
 
 include target/$(TARGET_CHIP)/target.mk
 
@@ -322,7 +323,7 @@ clean:
 # ------------------------------------------------------------------------------
 
 ifeq ($(OS),Windows_NT)
-    OPENOCD_BIN     ?= $(SW_ROOT)/msys64/mingw64/bin/openocd.exe
+    OPENOCD_BIN     ?= $(SW_ROOT)/msys64/mingw64/bin/openocd-at32.exe
     OPENOCD_SCRIPTS ?= $(SW_ROOT)/msys64/mingw64/share/openocd/scripts
     OPENOCD_CMD ?= $(OPENOCD_BIN) -s $(OPENOCD_SCRIPTS)                         \
         -f target/$(TARGET_CHIP)/openocd.cfg -c "adapter speed 4000"            \
