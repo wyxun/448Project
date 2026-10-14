@@ -42,6 +42,7 @@
 /* MODUS object IDs — extend as new class modules are added */
 #define TEMPLATE_CLASS   ((MODUS_ID_MOCK<<8)+1)
 #define FOC_APP          ((MODUS_ID_MOCK<<8)+2)
+#define MVC              ((MODUS_ID_CLASS<<8)+1)
 
 
 /*============================ MACROFIED FUNCTIONS ===========================*/

@@ -74,25 +74,33 @@ static void pwm_init(void)
     crm_periph_clock_enable(CRM_TMR1_PERIPH_CLOCK, TRUE);
     crm_periph_clock_enable(CRM_TMR3_PERIPH_CLOCK, TRUE);
 
-    tmr_base_init(TMR1, 106U, 0U);
+    tmr_base_init(TMR1, AT32_CLIENT_RF_PWM_PERIOD_TICKS - 1U, 0U);
     tmr_output_default_para_init(&tOutput);
     tOutput.oc_mode = TMR_OUTPUT_CONTROL_PWM_MODE_A;
     tOutput.oc_output_state = TRUE;
     tOutput.occ_output_state = TRUE;
     tmr_output_channel_config(TMR1, TMR_SELECT_CHANNEL_1, &tOutput);
-    tmr_channel_value_set(TMR1, TMR_SELECT_CHANNEL_1, 53U);
+    tmr_channel_value_set(TMR1, TMR_SELECT_CHANNEL_1,
+                          AT32_CLIENT_RF_PWM_COMPARE_TICKS);
     tmr_output_channel_config(TMR1, TMR_SELECT_CHANNEL_1C, &tOutput);
     tmr_brkdt_default_para_init(&tBreak);
-    tBreak.deadtime = 2U;
+    tBreak.deadtime = AT32_CLIENT_RF_PWM_DEADTIME_TICKS;
+    tBreak.fcsodis_state = TRUE;
     tmr_brkdt_config(TMR1, &tBreak);
-    tmr_output_enable(TMR1, TRUE);
+    tmr_event_sw_trigger(TMR1, TMR_OVERFLOW_SWTRIG);
+    tmr_output_enable(TMR1, FALSE);
     tmr_counter_enable(TMR1, FALSE);
 
-    tmr_base_init(TMR3, 999U, 0U);
+    tmr_base_init(TMR3, AT32_CLIENT_DAC_PWM_PERIOD_TICKS - 1U,
+                  AT32_CLIENT_DAC_PWM_PRESCALER);
+    tOutput.oc_mode = TMR_OUTPUT_CONTROL_FORCE_HIGH;
+    tOutput.occ_output_state = FALSE;
     tmr_output_channel_config(TMR3, TMR_SELECT_CHANNEL_1, &tOutput);
-    tmr_channel_value_set(TMR3, TMR_SELECT_CHANNEL_1, 0U);
-    tmr_output_enable(TMR3, TRUE);
-    tmr_counter_enable(TMR3, FALSE);
+    tmr_output_channel_buffer_enable(TMR3, TMR_SELECT_CHANNEL_1, TRUE);
+    tmr_channel_value_set(TMR3, TMR_SELECT_CHANNEL_1,
+                          AT32_CLIENT_DAC_PWM_PERIOD_TICKS);
+    tmr_event_sw_trigger(TMR3, TMR_OVERFLOW_SWTRIG);
+    tmr_counter_enable(TMR3, TRUE);
 }
 
 /**
@@ -152,6 +160,13 @@ static void output_gpio_init(void)
 
     crm_periph_clock_enable(CRM_GPIOA_PERIPH_CLOCK, TRUE);
     crm_periph_clock_enable(CRM_GPIOB_PERIPH_CLOCK, TRUE);
+    /* Establish the inhibited/inverted-safe levels before enabling pads. */
+    gpio_bits_write(GPIOB, GPIO_PINS_3 | GPIO_PINS_4 | GPIO_PINS_5 |
+                    GPIO_PINS_6 | GPIO_PINS_7, FALSE);
+    gpio_bits_write(GPIOB, GPIO_PINS_1, TRUE);
+    gpio_bits_write(GPIOA, GPIO_PINS_7 | GPIO_PINS_8 | GPIO_PINS_11 |
+                    GPIO_PINS_15, FALSE);
+    gpio_bits_write(GPIOA, GPIO_PINS_6, TRUE);
     gpio_default_para_init(&tGpio);
     tGpio.gpio_drive_strength = GPIO_DRIVE_STRENGTH_MODERATE;
     tGpio.gpio_out_type = GPIO_OUTPUT_PUSH_PULL;
@@ -160,11 +175,9 @@ static void output_gpio_init(void)
     tGpio.gpio_pins = GPIO_PINS_1 | GPIO_PINS_3 | GPIO_PINS_4 |
                       GPIO_PINS_5 | GPIO_PINS_6 | GPIO_PINS_7;
     gpio_init(GPIOB, &tGpio);
-    tGpio.gpio_pins = GPIO_PINS_11 | GPIO_PINS_15;
+    tGpio.gpio_pins = GPIO_PINS_6 | GPIO_PINS_7 | GPIO_PINS_8 |
+                      GPIO_PINS_11 | GPIO_PINS_15;
     gpio_init(GPIOA, &tGpio);
-    gpio_bits_write(GPIOB, GPIO_PINS_1 | GPIO_PINS_3 | GPIO_PINS_4 |
-                    GPIO_PINS_5 | GPIO_PINS_6 | GPIO_PINS_7, FALSE);
-    gpio_bits_write(GPIOA, GPIO_PINS_11 | GPIO_PINS_15, FALSE);
 }
 
 static void pwm_gpio_init(void)
@@ -177,10 +190,11 @@ static void pwm_gpio_init(void)
     tGpio.gpio_mode = GPIO_MODE_MUX;
     tGpio.gpio_pull = GPIO_PULL_NONE;
     tGpio.gpio_pins = GPIO_PINS_6 | GPIO_PINS_7 | GPIO_PINS_8;
-    gpio_init(GPIOA, &tGpio);
-    gpio_pin_mux_config(GPIOA, GPIO_PINS_SOURCE6, GPIO_MUX_2);
+    /* PA6 TMR3_CH1 uses MUX1; MUX2 routes the TMR1 break input. */
+    gpio_pin_mux_config(GPIOA, GPIO_PINS_SOURCE6, GPIO_MUX_1);
     gpio_pin_mux_config(GPIOA, GPIO_PINS_SOURCE7, GPIO_MUX_2);
     gpio_pin_mux_config(GPIOA, GPIO_PINS_SOURCE8, GPIO_MUX_2);
+    gpio_init(GPIOA, &tGpio);
 }
 /**
  * @brief USART1 初始化
@@ -210,9 +224,16 @@ static void usart1_init(void)
     gpio_pin_mux_config(GPIOA, GPIO_PINS_SOURCE9, GPIO_MUX_1);
     gpio_pin_mux_config(GPIOA, GPIO_PINS_SOURCE10, GPIO_MUX_1);
 
-    nvic_irq_enable(USART1_IRQn, 1, 2);
+    nvic_irq_disable(USART1_IRQn);
+    if (MDI_UART_STREAM_INIT(g_at32_client_serial_stream,
+                            g_at32_client_serial_tx,
+                            AT32_CLIENT_STREAM_BUFFER_SIZE,
+                            g_at32_client_serial_rx,
+                            AT32_CLIENT_STREAM_BUFFER_SIZE) != MDI_OK) {
+        return;
+    }
 
-    usart_init(USART1, 115200, USART_DATA_8BITS, USART_STOP_1_BIT);
+    usart_init(USART1, 4800U, USART_DATA_8BITS, USART_STOP_1_BIT);
     usart_transmitter_enable(USART1, TRUE);
     usart_receiver_enable(USART1, TRUE);
     usart_parity_selection_config(USART1, USART_PARITY_NONE);
@@ -226,11 +247,7 @@ static void usart1_init(void)
     usart_flag_clear(USART1, USART_TDC_FLAG);
     usart_flag_clear(USART1, USART_RDBF_FLAG);
 
-    (void)MDI_UART_STREAM_INIT(g_at32_client_serial_stream,
-                               g_at32_client_serial_tx,
-                               AT32_CLIENT_STREAM_BUFFER_SIZE,
-                               g_at32_client_serial_rx,
-                               AT32_CLIENT_STREAM_BUFFER_SIZE);
+    nvic_irq_enable(USART1_IRQn, 1U, 0U);
 }
 
 /**
@@ -251,8 +268,8 @@ void peripheral_Init(void)
 
     /* 3. 板级输出先置安全电平，再切换到定时器复用 */
     output_gpio_init();
-    pwm_gpio_init();
     pwm_init();
+    pwm_gpio_init();
     adc_init();
 
     /* 4. USART1 板间串口初始化 */

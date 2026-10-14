@@ -149,7 +149,10 @@ fsm_rt_t template_class_Run(template_class_t *ptThis)
 ```c
 // 示例：操控继电器或串口（与特定芯片引脚解耦）
 MDI_IO_Write(board_led, 1U);
-MDI_STREAM_Write(board_link_stream, data, length);
+uint32_t written = 0U;
+mdi_status_t status = MDI_STREAM_Write(
+    serial_stream, data, length, &written);
+// 检查 status 和 written；短写时仅重试尚未入队的后缀。
 ```
 
 | 常用宏 | 对应操作 |

@@ -1,6 +1,6 @@
 /**
  * @file backend.h
- * @brief AT32F415 static MDI GPIO backend.
+ * @brief AT32F421 static MDI GPIO backend.
  */
 #ifndef M448_CLIENT_AT32F421_MDI_BACKEND_H
 #define M448_CLIENT_AT32F421_MDI_BACKEND_H
@@ -28,29 +28,40 @@ extern int64_t get_system_ticks(void);
     }
 
 /* AT32F421 USART primitives consumed by the generic MDI UART stream feature.
- * Queue ownership and frame timing are provided by modus/mdi/feature. */
-#define MDI_AT32_USART_RX_READY(UART) \
-    (usart_interrupt_flag_get((UART), USART_RDBF_FLAG) != RESET)
-#define MDI_AT32_USART_RX_READ(UART) \
-    usart_data_receive((UART))
-#define MDI_AT32_USART_TX_COMPLETE(UART) \
-    (usart_flag_get((UART), USART_TDC_FLAG) != RESET)
-#define MDI_AT32_USART_TX_WRITE(UART, BYTE) \
-    usart_data_transmit((UART), (BYTE))
-#define MDI_AT32_USART_TX_CLEAR(UART) \
-    usart_flag_clear((UART), USART_TDC_FLAG)
-#define MDI_AT32_USART_TX_IRQ_ENABLE(UART) \
-    usart_interrupt_enable((UART), USART_TDC_INT, TRUE)
-#define MDI_AT32_USART_TX_IRQ_DISABLE(UART) \
-    usart_interrupt_enable((UART), USART_TDC_INT, FALSE)
+ * Queue ownership and immediate reads are provided by modus/mdi/feature. */
+/**
+ * @brief Acknowledge hardware RX loss before the stream reads another byte.
+ * @param ptUart UART whose interrupt is being serviced.
+ * @return True if overrun was observed; the ambiguous data byte is discarded.
+ * @note AT32 clears RX errors with a status-read followed by a data-read.
+ */
+MDI_INLINE bool at32_mdi_UartRxLost(usart_type *ptUart)
+{
+    uint32_t wStatus = ptUart->sts;
+    if ((wStatus & USART_ROERR_FLAG) == 0U) {
+        return false;
+    }
+    (void)ptUart->dt;
+    return true;
+}
 
-#define MDI_AT32_UART_STREAM_BIND(NAME, STATE, UART)                           \
-    MDI_UART_STREAM_BIND(NAME, STATE, UART,                                   \
-                         MDI_AT32_USART_RX_READY, MDI_AT32_USART_RX_READ,      \
-                         MDI_AT32_USART_TX_COMPLETE,                           \
-                         MDI_AT32_USART_TX_WRITE, MDI_AT32_USART_TX_CLEAR,      \
-                         MDI_AT32_USART_TX_IRQ_ENABLE,                         \
-                         MDI_AT32_USART_TX_IRQ_DISABLE)
+#define MDI_AT32_USART_RX_READY(UART)                                           \
+    (((UART)->sts & USART_RDBF_FLAG) != 0U)
+#define MDI_AT32_USART_RX_READ(UART) ((uint8_t)(UART)->dt)
+#define MDI_AT32_USART_TX_COMPLETE(UART)                                        \
+    (((UART)->ctrl1_bit.tdcien != 0U) &&                                        \
+     (((UART)->sts & USART_TDC_FLAG) != 0U))
+#define MDI_AT32_USART_TX_WRITE(UART, BYTE) ((UART)->dt = (BYTE))
+#define MDI_AT32_USART_TX_CLEAR(UART) ((UART)->sts = ~USART_TDC_FLAG)
+#define MDI_AT32_USART_TX_IRQ_ENABLE(UART) ((UART)->ctrl1_bit.tdcien = 1U)
+#define MDI_AT32_USART_TX_IRQ_DISABLE(UART) ((UART)->ctrl1_bit.tdcien = 0U)
+
+#define MDI_AT32_UART_STREAM_BIND(NAME, STATE, UART)                            \
+    MDI_UART_STREAM_BIND(NAME, STATE, UART,                                     \
+        MDI_AT32_USART_RX_READY, MDI_AT32_USART_RX_READ,                        \
+        at32_mdi_UartRxLost, MDI_AT32_USART_TX_COMPLETE,                        \
+        MDI_AT32_USART_TX_WRITE, MDI_AT32_USART_TX_CLEAR,                       \
+        MDI_AT32_USART_TX_IRQ_ENABLE, MDI_AT32_USART_TX_IRQ_DISABLE)
 
 #define MDI_AT32_ADC_DMA_TRIGGER_BIND(NAME, ADC, DMA, BUFFER, BLOCK_SIZE,     \
                                       PUBLISHED, BUSY)                         \
