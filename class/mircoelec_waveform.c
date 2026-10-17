@@ -14,8 +14,8 @@
 #include <stddef.h>
 #include <string.h>
 
-#define MIRCOELEC_WAVEFORM_RATE_HZ 10000U
-#define MIRCOELEC_WAVEFORM_PERIOD_NS 100000U
+#define MIRCOELEC_WAVEFORM_RATE_HZ 1000U
+#define MIRCOELEC_WAVEFORM_PERIOD_NS 1000000U
 
 /**
  * @brief Rebuild this module's stream to discard data from earlier runs.
@@ -83,10 +83,12 @@ void mircoelec_waveform_Start(mircoelec_waveform_t *ptThis,
         mwaveform.Start();
         ptThis->bRunning = true;
     }
-    MLOGF(I, "DAC waveform: EnvA/CarrB/AMSim at 10000 Hz (ideal AM)\r\n");
+    MLOGF(I, "DAC waveform: EnvA/CarrB/AMSim at %lu Hz (ideal AM)\r\n",
+          (unsigned long)MIRCOELEC_WAVEFORM_RATE_HZ);
     if (((uint64_t)wAHz + (uint64_t)wBHz)
         >= MIRCOELEC_WAVEFORM_RATE_HZ / 2U) {
-        MLOGF(W, "DAC waveform aliasing: A+B must be below 5000 Hz\r\n");
+        MLOGF(W, "DAC waveform aliasing: A+B must be below %lu Hz\r\n",
+              (unsigned long)(MIRCOELEC_WAVEFORM_RATE_HZ / 2U));
     }
 }
 

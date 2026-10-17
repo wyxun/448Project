@@ -59,7 +59,7 @@ unsigned SEGGER_RTT_Write(unsigned index, const void *buffer, unsigned size)
         assert(s_scales[2] == 32512.5f);
     }
     if (size > 17U && data[2] == MWAVEFORM_FRAME_TYPE_BATCH) {
-        assert(data[4] == 3U && read_u32(&data[11]) == 100000U);
+        assert(data[4] == 3U && read_u32(&data[11]) == 1000000U);
         const uint16_t count = read_u16(&data[9]);
         assert(size == 17U + 7U * count);
         for (uint16_t i = 0U; i < count; i++) {
@@ -99,21 +99,21 @@ static void synchronous_stream_test(void)
     assert(s_samples == 0U);
     assert(mircoelec_StartWaveform(&tMircoelec, 50U, 500U)
         == DAC_DRIVER_RESULT_OK);
-    step(31U);
+    step(199U);
     flush();
     assert(s_samples == 0U);
     step(1U);
     flush();
     assert(s_samples == 1U && s_last_index == 0U);
-    assert(s_last_values[0] > 124 && s_last_values[0] < 141);
-    assert(s_last_values[1] > 73 && s_last_values[1] < 86);
+    assert(s_last_values[0] > 80 && s_last_values[0] < 97);
+    assert(s_last_values[1] > -10 && s_last_values[1] < 10);
 
     for (unsigned n = 1U; n < 400U; n++) {
-        step(32U);
+        step(200U);
         flush();
         assert(s_samples == n + 1U && s_last_index == n);
-        const double time = (double)(n + 1U) / 10000.0;
-        const double a = 0.5 + 0.5 * sin(2.0 * 3.141592653589793 * 50.0 * time);
+        const double time = (double)(n + 1U) / 1000.0;
+        const double a = 0.5 - 0.5 * sin(2.0 * 3.141592653589793 * 50.0 * time);
         const double b = sin(2.0 * 3.141592653589793 * 500.0 * time);
         assert(fabs((double)s_last_values[0] / s_scales[0] - a) < 0.02);
         assert(fabs((double)s_last_values[1] / s_scales[1] - b) < 0.04);
@@ -121,21 +121,21 @@ static void synchronous_stream_test(void)
     }
     assert(mircoelec_StartWaveform(&tMircoelec, 20001U, 500U)
         == DAC_DRIVER_RESULT_INVALID_ARGUMENT);
-    step(32U);
+    step(200U);
     flush();
     assert(s_samples == 401U && s_last_index == 400U);
 
     /* Leave one sample unsent, then restart: it must be discarded. */
-    step(32U);
+    step(200U);
     assert(mircoelec_StartWaveform(&tMircoelec, 100U, 1000U)
         == DAC_DRIVER_RESULT_OK);
     flush();
     assert(s_samples == 401U);
-    step(32U);
+    step(200U);
     flush();
     assert(s_samples == 402U && s_last_index == 0U);
     assert(mircoelec_StopWaveform(&tMircoelec) == DAC_DRIVER_RESULT_OK);
-    step(64U);
+    step(400U);
     flush();
     assert(s_samples == 402U);
 
@@ -152,13 +152,13 @@ static void endpoints_and_backpressure_test(void)
 {
     mircoelec_waveform_t wave = {0};
     dac_driver_t dac = { .eState = DAC_DRIVER_STATE_RUNNING };
-    mircoelec_waveform_Init(&wave, 320000U);
+    mircoelec_waveform_Init(&wave, 200000U);
     mircoelec_waveform_Start(&wave, 0U, 0U);
     for (unsigned a = 0U; a <= 255U; a += 255U) {
         for (unsigned b = 0U; b <= 255U; b += 255U) {
             dac.tEnvelope.chLastValue = (uint8_t)a;
             dac.tCarrier.chLastValue = (uint8_t)b;
-            for (unsigned i = 0U; i < 32U; i++) {
+            for (unsigned i = 0U; i < 200U; i++) {
                 mircoelec_waveform_IsrStep(&wave, &dac);
             }
             flush();
@@ -175,14 +175,15 @@ static void endpoints_and_backpressure_test(void)
     /* Negative odd products must truncate toward zero, not round down. */
     dac.tEnvelope.chLastValue = 1U;
     dac.tCarrier.chLastValue = 127U;
-    for (unsigned i = 0U; i < 32U; i++) {
+    for (unsigned i = 0U; i < 200U; i++) {
         mircoelec_waveform_IsrStep(&wave, &dac);
     }
     flush();
     assert(s_last_values[0] == 1 && s_last_values[1] == -1);
     assert(s_last_values[2] == 0);
     s_rtt_full = true;
-    for (unsigned i = 0U; i < 32U * (MWAVEFORM_BATCH_DEPTH + 5U); i++) {
+    for (unsigned i = 0U;
+         i < 200U * (MWAVEFORM_BATCH_DEPTH + 5U); i++) {
         mircoelec_waveform_IsrStep(&wave, &dac);
     }
     flush();
@@ -194,7 +195,7 @@ static void endpoints_and_backpressure_test(void)
     mircoelec_waveform_Init(&wave, 0U);
     mircoelec_waveform_Start(&wave, 50U, 500U);
     const unsigned before = s_samples;
-    for (unsigned i = 0U; i < 64U; i++) {
+    for (unsigned i = 0U; i < 640U; i++) {
         mircoelec_waveform_IsrStep(&wave, &dac);
     }
     flush();

@@ -162,8 +162,8 @@ void dac_driver_IsrStep(dac_driver_t *ptThis)
     ptThis->tEnvelope.wPhase += ptThis->tEnvelope.wPhaseStepPerSample;
     chCarrierValue = s_chSineTable[
         (uint8_t)(ptThis->tCarrier.wPhase >> 24)];
-    chEnvelopeValue = s_chSineTable[
-        (uint8_t)(ptThis->tEnvelope.wPhase >> 24)];
+    chEnvelopeValue = (uint8_t)(255U - s_chSineTable[
+        (uint8_t)(ptThis->tEnvelope.wPhase >> 24)]);
 
     if (!ptThis->tCarrier.bValueValid
         || (ptThis->tCarrier.chLastValue != chCarrierValue)) {

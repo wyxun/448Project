@@ -13,7 +13,7 @@
 #include <stddef.h>
 #include <string.h>
 
-#define MIRCROELEC_DAC_SAMPLE_FREQUENCY_HZ 320000U
+#define MIRCROELEC_DAC_SAMPLE_FREQUENCY_HZ 200000U
 
 static modus_base_t s_tMircoelecBase;
 static modus_base_cfg_t s_tMircoelecBaseCfg = {
