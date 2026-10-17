@@ -18,7 +18,7 @@
 extern int64_t get_system_ticks(void);
 
 #ifndef AT32F421_CORE_CLOCK_HZ
-#define AT32F421_CORE_CLOCK_HZ 48000000UL
+#define AT32F421_CORE_CLOCK_HZ 96000000UL
 #endif
 
 #define MDI_AT32_TICK_BIND(NAME, NOW_FN)                                        \

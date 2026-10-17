@@ -23,6 +23,7 @@ static rf448_result_t _rf448_driver_SafeOutput(void)
 {
     mdi_status_t eCarrier = MDI_OK;
     mdi_status_t eEnergy = MDI_OK;
+    /* Logical SD=1; the MDI binding drives PB1 low through Q5 inversion. */
     MDI_IO_Write(pt_sd, 1U);
     eCarrier = MDI_PWM_SafeStop(pwm1);
     /* The external NPN inverts DACPWM: safe energy requires PA6 high. */
@@ -149,6 +150,7 @@ static rf448_result_t _rf448_driver_EnableCarrier(rf448_driver_t *ptThis)
 {
     mdi_status_t eStatus = MDI_PWM_Enable(pwm1, true);
     if (eStatus != MDI_OK) { return RF448_RESULT_IO; }
+    /* Logical SD=0 drives PB1 high, turning Q5 on and releasing shutdown. */
     MDI_IO_Write(pt_sd, 0U);
     ptThis->eState = RF448_STATE_RUNNING;
     MLOGF(I, "RF448 state: RUNNING energy=%u/1000\r\n",

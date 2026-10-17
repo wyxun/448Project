@@ -106,35 +106,33 @@ static void pwm_init(void)
 /**
  * @brief 内部调用：AT32F421 系统时钟配置
  *
- *  AT32F421 内置 HICK 支持两种工作频率：
- *    - 默认 8 MHz（复位后）
- *    - 48 MHz（通过 misc2.hick_to_sclk=1 + misc1.hickdiv=1 使能）
+ *  使用板载 8 MHz HEXT /2 × PLL 24，得到 96 MHz HCLK。
+ *  APB1/APB2 为 48 MHz；分频后定时器时钟为 96 MHz。
  */
 static void SystemClock_Config(void)
 {
-    /* 1. 等待 HICK 稳定 */
-    while (crm_flag_get(CRM_HICK_STABLE_FLAG) == RESET);
+    flash_psr_set(FLASH_WAIT_CYCLE_2);
 
-    /* 2. Flash 等待周期：48 MHz 需 ≥1WS（使用宏 flash_psr_set） */
-    flash_psr_set(FLASH_WAIT_CYCLE_1);
+    crm_clock_source_enable(CRM_CLOCK_SOURCE_HEXT, TRUE);
+    while (crm_hext_stable_wait() == ERROR) {
+    }
 
-    /* 3. 使能 HICK 48 MHz 模式：
-     *    misc2.hick_to_sclk = 1  → 允许 HICK 以 48 MHz 供给系统时钟
-     *    misc1.hickdiv       = 1  → HICK 48 MHz 不分频（NODIV）
-     */
-    CRM->misc2_bit.hick_to_sclk = TRUE;
-    CRM->misc1_bit.hickdiv       = TRUE;
+    crm_pll_config(CRM_PLL_SOURCE_HEXT_DIV, CRM_PLL_MULT_24);
+    crm_clock_source_enable(CRM_CLOCK_SOURCE_PLL, TRUE);
+    while (crm_flag_get(CRM_PLL_STABLE_FLAG) != SET) {
+    }
 
-    /* 4. AHB/APB 总线不分频 */
+    /* HCLK=96 MHz，保持 APB 外设时钟 48 MHz。 */
     crm_ahb_div_set(CRM_AHB_DIV_1);
-    crm_apb1_div_set(CRM_APB1_DIV_1);
-    crm_apb2_div_set(CRM_APB2_DIV_1);
+    crm_apb1_div_set(CRM_APB1_DIV_2);
+    crm_apb2_div_set(CRM_APB2_DIV_2);
 
-    /* 5. 切换系统时钟 → HICK */
-    crm_sysclk_switch(CRM_SCLK_HICK);
-    while (crm_sysclk_switch_status_get() != CRM_SCLK_HICK);
+    crm_auto_step_mode_enable(TRUE);
+    crm_sysclk_switch(CRM_SCLK_PLL);
+    while (crm_sysclk_switch_status_get() != CRM_SCLK_PLL) {
+    }
+    crm_auto_step_mode_enable(FALSE);
 
-    /* 6. 更新全局时钟变量 */
     system_core_clock_update();
 }
 
@@ -160,10 +158,10 @@ static void output_gpio_init(void)
 
     crm_periph_clock_enable(CRM_GPIOA_PERIPH_CLOCK, TRUE);
     crm_periph_clock_enable(CRM_GPIOB_PERIPH_CLOCK, TRUE);
-    /* Establish the inhibited/inverted-safe levels before enabling pads. */
+    /* PB1 low turns Q5 off; its pull-up holds IR2110 SD high (shutdown). */
     gpio_bits_write(GPIOB, GPIO_PINS_3 | GPIO_PINS_4 | GPIO_PINS_5 |
                     GPIO_PINS_6 | GPIO_PINS_7, FALSE);
-    gpio_bits_write(GPIOB, GPIO_PINS_1, TRUE);
+    gpio_bits_write(GPIOB, GPIO_PINS_1, FALSE);
     gpio_bits_write(GPIOA, GPIO_PINS_7 | GPIO_PINS_8 | GPIO_PINS_11 |
                     GPIO_PINS_15, FALSE);
     gpio_bits_write(GPIOA, GPIO_PINS_6, TRUE);
@@ -260,7 +258,7 @@ void peripheral_Init(void)
     /* 中断优先级分组：4位抢占优先级，0位响应优先级 */
     nvic_priority_group_config(NVIC_PRIORITY_GROUP_4);
 
-    /* 1. 初始化系统时钟 HICK 48 MHz */
+    /* 1. 初始化系统时钟：8 MHz HEXT /2 × PLL 24 = 96 MHz */
     SystemClock_Config();
 
     /* 2. debug led 初始化 */
@@ -275,7 +273,7 @@ void peripheral_Init(void)
     /* 4. USART1 板间串口初始化 */
     usart1_init();
 
-    /* 5. 启动 SysTick 1ms 中断 (48MHz / 1000 = 48000) */
+    /* 5. 启动 SysTick 1ms 中断 (96MHz / 1000 = 96000) */
     SysTick_Config(SystemCoreClock / 1000U);
 }
 

@@ -56,10 +56,10 @@ target 表示本次启动目标，不是实测输出；output 表示载波硬件
 
 | 功能 | 固定参数 / 接线 |
 |---|---|
-| 448K 载波 | 48 MHz / 107 = 448.598 kHz，TMR1 CH1/CH1C |
-| PWM1N / PWM1P | PA8 主通道 / PA7 互补通道；比较值 53，死区 2 tick（约 41.67 ns） |
-| 能量控制 DACPWM | PA6 / TMR3 CH1，4.8 kHz，周期 1000 tick，PSC=9 |
-| IR2110 SD | PB1，1 关断、0 放行 |
+| 448K 载波 | 8 MHz HEXT /2 × PLL 24 = 96 MHz HCLK；APB2=48 MHz、TMR1=96 MHz；96 MHz / 214 = 448.598 kHz |
+| PWM1N / PWM1P | PA8 主通道 / PA7 互补通道；ARR=213、比较值 107、死区 11 tick（约 114.6 ns，周期的 5.14%），两路高电平约 44.86% |
+| 能量控制 DACPWM | PA6 / TMR3 CH1，4.8 kHz，周期 1000 tick，PSC=19，TMR3=96 MHz |
+| IR2110 SD | 经 Q5（S8050）反相；MDI 逻辑 1 关断、0 放行；对应 PB1 低关断、高放行 |
 
 载波频率固定，驱动没有调频或独立占空比 API。已有死区设置沿用，不代表已完成功率级时序验证。
 图一 Q8 反相：MCU compare=`1000-energy`，MCU 占空比与能量目标反向。

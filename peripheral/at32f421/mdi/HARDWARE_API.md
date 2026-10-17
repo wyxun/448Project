@@ -20,10 +20,10 @@
 
 | 职责 | MDI 资源 | 物理资源 | 调用方式 | 备注 |
 |---|---|---|---|---|
-| 母线能量 PWM | `dac_pwm` | TMR3 CH1，DACPWM（PA6） | `MDI_PWM_Stage` + `MDI_PWM_Commit` | ARR=999、PSC=9，4.8 kHz；compare 0..1000；SafeStop 强制高电平，经 NPN 反相后为零控制量 |
-| 固定 448K PWM | `pwm1` | TMR1 CH1 / PA8 PWM1N；CH1C / PA7 PWM1P | `MDI_PWM_Enable` / `MDI_PWM_SafeStop` | ARR=106，compare=53，deadtime=2，实际 448.598 kHz；停机两路低电平 |
-| IR2110 关断 | `pt_sd` | PB1（SD） | `MDI_IO_Write(pt_sd, 0/1)` | 普通 GPIO 电平控制 |
-| 匹配及头选择继电器 | `pt_relay` | PB7（RL1）、PB6（RL2）、PB5（RL3）、PB4（RL4）、PB3（RL5）、PA15（RL6） | `MDI_IO_WriteMasked(pt_relay, 0x38, value)` | RL1～RL3 匹配预留；RL4～RL6 选头，CAP=0x10、RES=0x38，Stop=0 |
+| 母线能量 PWM | `dac_pwm` | TMR3 CH1，DACPWM（PA6） | `MDI_PWM_Stage` + `MDI_PWM_Commit` | TMR3=96 MHz；ARR=999、PSC=19，4.8 kHz；compare 0..1000；SafeStop 强制高电平，经 NPN 反相后为零控制量 |
+| 固定 448K PWM | `pwm1` | TMR1 CH1 / PA8 PWM1N；CH1C / PA7 PWM1P | `MDI_PWM_Enable` / `MDI_PWM_SafeStop` | TMR1=96 MHz；ARR=213，compare=107，deadtime=11（约 114.6 ns）；实际 448.598 kHz、两路高电平约 44.86%；停机两路低电平 |
+| IR2110 关断 | `pt_sd` | PB1 经 S8050 反相到 IR2110 SD | `MDI_IO_Write(pt_sd, 0/1)` | MDI 逻辑 1=关断、0=放行；PB1 物理低=关断、高=放行 |
+| 匹配及头选择继电器 | `pt_relay` | bit0～5 对应客板 RL1～RL6，依次映射 PA15、PB3、PB4、PB5、PB6、PB7 | `MDI_IO_WriteMasked(pt_relay, 0x38, value)` | RL1～RL3 匹配预留；RL4～RL6（PB5～PB7）选头，CAP=0x10、RES=0x38，Stop=0 |
 | 状态 LED | `pt_led_status` | PA11（STATELED） | `MDI_IO_Write(pt_led_status, 0/1)` | 普通 GPIO 电平输出 |
 
 ## ADC/DMA
@@ -46,13 +46,13 @@ ADC 组资源：`client_adc_dma` 用于块发布/消费，`client_adc_mean` 只�
 | MDI 资源 | 外设 | 引脚/配置 | 调用方式 | 上层职责 |
 |---|---|---|---|---|
 | `serial_stream` | USART1 | 4800 baud；PA9 TX、PA10 RX | `MDI_STREAM_*` | Client 应用串口服务 |
-| `raw_tick` | `perf_counter::get_system_ticks()` | AT32F421 主频 48 MHz | `MDI_TICK_Now(raw_tick)` | 原始 CPU 周期参考，不提供毫秒/微秒单位 |
+| `raw_tick` | `perf_counter::get_system_ticks()` | AT32F421 HCLK 96 MHz | `MDI_TICK_Now(raw_tick)` | 原始 CPU 周期参考，不提供毫秒/微秒单位 |
 
 Stream 读写返回 `mdi_status_t`，实际字节数从输出参数取得。空队列、零长度、短传输返回 `MDI_OK`；`MDI_OVERRUN` 可以伴随有效已读字节。调用方必须检查状态和数量。Read 立即返回已有字节，`mdi_Clock()` 不再推进空闲超时。
 
 USART1 队列初始化成功后才启用 IRQ。接收溢出通过状态寄存器读取后再读取数据寄存器清除；发送完成同时检查 TDC 和 TDC 中断使能。USART1 为光耦板间链路，4800 baud，与 master USART3 对应。启用串口 shell 时该链路用于调试，不同时作为业务协议接收端。
 
-已修正 RL6 的 MDI 映射：逻辑 bit5 操作 GPIOA PA15，其余继电器仍操作 GPIOB；绑定与 GPIO 初始化及原理图一致。
+继电器 MDI 逻辑位直接按客板 RL1～RL6 编号；选头使用 bit3～5，对应 PB5～PB7。
 
 ## 初始化与中断边界
 

@@ -2,9 +2,9 @@
 #define RF448_TEST_MDI_H
 #include "mdi/core/contract.h"
 #define AT32_CLIENT_DAC_PWM_PERIOD_TICKS 1000U
-#define AT32_CLIENT_RF_PWM_PERIOD_TICKS 107U
-#define AT32_CLIENT_RF_PWM_COMPARE_TICKS 53U
-#define AT32_CLIENT_RF_PWM_DEADTIME_TICKS 2U
+#define AT32_CLIENT_RF_PWM_PERIOD_TICKS 214U
+#define AT32_CLIENT_RF_PWM_COMPARE_TICKS 107U
+#define AT32_CLIENT_RF_PWM_DEADTIME_TICKS 11U
 typedef struct { uint32_t duty; } dac_pwm_pwm_frame_t;
 typedef struct { uint32_t duty; } pwm1_pwm_frame_t;
 extern uint32_t test_duty, test_relay, test_sd;

@@ -21,17 +21,19 @@ extern mdi_uart_stream_state_t g_at32_client_serial_stream;
 extern uint8_t g_at32_client_serial_tx[AT32_CLIENT_STREAM_BUFFER_SIZE];
 extern uint8_t g_at32_client_serial_rx[AT32_CLIENT_STREAM_BUFFER_SIZE];
 
-#define AT32_CLIENT_SD_PINS(X, V, ...) X(V, 0, 1, 0)
+/* pt_sd is the IR2110 logical shutdown signal; Q5 inverts it at PB1. */
+#define AT32_CLIENT_SD_PINS(X, V, ...) X(V, 0, 1, 1)
 #define AT32_CLIENT_SD_PORTS(X, V) X(V, GPIOB, AT32_CLIENT_SD_PINS)
 MDI_AT32_IO_BIND_OUTPUT_CAPS(pt_sd, 1, AT32_CLIENT_SD_PORTS, MDI_IO_CAP_OUTPUT)
 
+/* Client RL1..RL6: PA15, PB3, PB4, PB5, PB6, PB7. */
 #define AT32_CLIENT_RELAY_PINS(X, V, ...) \
-    X(V, 0, 7, 0) X(V, 1, 6, 0) X(V, 2, 5, 0) \
-    X(V, 3, 4, 0) X(V, 4, 3, 0)
-#define AT32_CLIENT_RELAY6_PINS(X, V, ...) X(V, 5, 15, 0)
+    X(V, 1, 3, 0) X(V, 2, 4, 0) X(V, 3, 5, 0) \
+    X(V, 4, 6, 0) X(V, 5, 7, 0)
+#define AT32_CLIENT_RELAY1_PIN(X, V, ...) X(V, 0, 15, 0)
 #define AT32_CLIENT_RELAY_PORTS(X, V) \
     X(V, GPIOB, AT32_CLIENT_RELAY_PINS) \
-    X(V, GPIOA, AT32_CLIENT_RELAY6_PINS)
+    X(V, GPIOA, AT32_CLIENT_RELAY1_PIN)
 MDI_AT32_IO_BIND_OUTPUT_CAPS(pt_relay, 6, AT32_CLIENT_RELAY_PORTS, MDI_IO_CAP_OUTPUT)
 
 #define AT32_CLIENT_LED_PINS(X, V, ...) X(V, 0, 11, 0)

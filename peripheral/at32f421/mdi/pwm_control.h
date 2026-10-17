@@ -9,11 +9,11 @@
 #include "at32f421_tmr.h"
 #include "mdi/core/contract.h"
 
-#define AT32_CLIENT_RF_PWM_PERIOD_TICKS 107U
-#define AT32_CLIENT_RF_PWM_COMPARE_TICKS 53U
-#define AT32_CLIENT_RF_PWM_DEADTIME_TICKS 2U
+#define AT32_CLIENT_RF_PWM_PERIOD_TICKS 214U
+#define AT32_CLIENT_RF_PWM_COMPARE_TICKS 107U
+#define AT32_CLIENT_RF_PWM_DEADTIME_TICKS 11U
 #define AT32_CLIENT_DAC_PWM_PERIOD_TICKS 1000U
-#define AT32_CLIENT_DAC_PWM_PRESCALER 9U
+#define AT32_CLIENT_DAC_PWM_PRESCALER 19U
 
 /**
  * @brief Inhibit both carrier outputs at their configured low idle level.
