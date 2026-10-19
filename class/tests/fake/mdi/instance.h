@@ -14,8 +14,8 @@ extern unsigned test_read_calls;
 extern int test_base_fail;
 extern unsigned test_registrations;
 extern unsigned test_timer_running;
-extern unsigned test_gpio[5];
-enum { dac_oe, dac_ab, dac_parallel, dac_wr, bio_power };
+extern unsigned test_gpio[6];
+enum { dac_oe, dac_ab, dac_parallel, dac_wr, bio_power, fan };
 enum { dwin_stream, board_link_stream };
 mdi_status_t test_read(unsigned resource, uint8_t *data,
                        uint32_t length, uint32_t *count);
@@ -34,6 +34,7 @@ TEST_GPIO(dac_ab)
 TEST_GPIO(dac_parallel)
 TEST_GPIO(dac_wr)
 TEST_GPIO(bio_power)
+TEST_GPIO(fan)
 #define MDI_TIMER_SetFrequency(R, H) ((H) != 0U ? MDI_OK : MDI_IO)
 #define MDI_TIMER_Start(R) test_start()
 #define MDI_TIMER_Stop(R) test_stop()

@@ -7,6 +7,7 @@
 
 #include "mircoelec.h"
 
+#include "mdi/instance.h"
 #include "mdebug/mshell.h"
 #include "mdebug/util_debug.h"
 
@@ -45,6 +46,7 @@ int mircoelec_Init(uintptr_t wObjectAddr, uintptr_t wObjectCfgAddr)
         return MODUS_EFAIL;
     }
 
+    MDI_IO_Write(fan, 0U);
     (void)memset(ptThis, 0, sizeof(*ptThis));
     ptThis->ptBase = &s_tMircoelecBase;
     ptThis->eState = MIRCROELEC_STATE_UNINITIALIZED;
@@ -82,6 +84,7 @@ static dac_driver_result_t _mircoelec_LatchDacError(
     mircoelec_t *ptThis,
     dac_driver_result_t eError)
 {
+    MDI_IO_Write(fan, 0U);
     ptThis->eDacError = eError;
     ptThis->eState = MIRCROELEC_STATE_ERROR;
 #if MWAVEFORM_ENABLE
@@ -122,6 +125,7 @@ dac_driver_result_t mircoelec_StartWaveform(
     if (eResult != DAC_DRIVER_RESULT_OK) {
         return _mircoelec_LatchDacError(ptThis, eResult);
     }
+    MDI_IO_Write(fan, 1U);
     ptThis->eDacError = DAC_DRIVER_RESULT_OK;
 #if MWAVEFORM_ENABLE
     mircoelec_waveform_Start(&ptThis->tWaveform, wAHz, wBHz);
@@ -149,6 +153,7 @@ dac_driver_result_t mircoelec_StopWaveform(mircoelec_t *ptThis)
     mircoelec_waveform_Stop(&ptThis->tWaveform);
 #endif
     eResult = dac_driver_Stop(&ptThis->tDac);
+    MDI_IO_Write(fan, 0U);
     if (eResult != DAC_DRIVER_RESULT_OK) {
         return _mircoelec_LatchDacError(ptThis, eResult);
     }
@@ -210,21 +215,43 @@ static void _mircoelec_DacCommand(const char *pchArgs)
     const char *pchText = pchArgs;
     uint32_t wAHz = 0U;
     uint32_t wBHz = 0U;
+    uint32_t wBAmplitudePercent = DAC_DRIVER_AMPLITUDE_FULL_SCALE_PERCENT;
     dac_driver_result_t eResult = DAC_DRIVER_RESULT_OK;
 
     if (mshell_ConsumeWord(&pchText, "start")) {
         if ((mshell_Parse(&pchText, &wAHz) != MSHELL_PARSE_OK)
             || (mshell_Parse(&pchText, &wBHz) != MSHELL_PARSE_OK)
-            || !mshell_AtEnd(pchText)
             || (wAHz > DAC_DRIVER_MAX_FREQUENCY_HZ)
             || (wBHz > DAC_DRIVER_MAX_FREQUENCY_HZ)) {
-            MLOGF(W, "Usage: dac start <A_Hz> <B_Hz> (0..20000)\r\n");
+            MLOGF(W,
+                "Usage: dac start <A_Hz> <B_Hz> [B_percent 0..100]\r\n");
+            return;
+        }
+        if (!mshell_AtEnd(pchText)
+            && (mshell_Parse(&pchText, &wBAmplitudePercent)
+                != MSHELL_PARSE_OK)) {
+            MLOGF(W,
+                "Usage: dac start <A_Hz> <B_Hz> [B_percent 0..100]\r\n");
+            return;
+        }
+        if (!mshell_AtEnd(pchText)
+            || (wBAmplitudePercent
+                > DAC_DRIVER_AMPLITUDE_FULL_SCALE_PERCENT)) {
+            MLOGF(W,
+                "Usage: dac start <A_Hz> <B_Hz> [B_percent 0..100]\r\n");
+            return;
+        }
+        eResult = dac_driver_SetCarrierAmplitude(&tMircoelec.tDac,
+            (uint8_t)wBAmplitudePercent);
+        if (eResult != DAC_DRIVER_RESULT_OK) {
+            MLOGF(W, "DAC start failed: %d\r\n", (int)eResult);
             return;
         }
         eResult = mircoelec_StartWaveform(&tMircoelec, wAHz, wBHz);
         if (eResult == DAC_DRIVER_RESULT_OK) {
-            MLOGF(I, "DAC started: A=%lu Hz B=%lu Hz\r\n",
-                  (unsigned long)wAHz, (unsigned long)wBHz);
+            MLOGF(I, "DAC started: A=%lu Hz B=%lu Hz B_amp=%lu%%\r\n",
+                  (unsigned long)wAHz, (unsigned long)wBHz,
+                  (unsigned long)wBAmplitudePercent);
         } else {
             MLOGF(W, "DAC start failed: %d\r\n", (int)eResult);
         }
@@ -245,7 +272,7 @@ static void _mircoelec_DacCommand(const char *pchArgs)
 }
 
 MODUS_SHELL_CMD(dac, _mircoelec_DacCommand,
-                "Control DAC sine output: start <A_Hz> <B_Hz> | stop");
+                "DAC sine: start <A_Hz> <B_Hz> [B_percent 0..100] | stop");
 #endif
 
 MODUS_DECLARE_OBJECT(mircoelec, Mircoelec,

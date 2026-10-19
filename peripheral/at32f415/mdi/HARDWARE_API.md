@@ -34,6 +34,7 @@
 | 职责 | MDI 资源 | 物理引脚 | 调用方式 | 备注 |
 |---|---|---|---|---|
 | 多路 LED | `leds` | PB15、PC6、PC7、PC8、PC9、PA8、PB7、PB8、PB9 | `MDI_IO_Write(leds, value)` | 逻辑索引顺序由 `AT32_MASTER_LED_*` 宏定义；具体颜色/状态名称以原理图网络标号为准 |
+| 风扇 | `fan` | PC12 | `MDI_IO_Write(fan, 0/1)` | 由 `mircoelec` 在 DAC 波形启动/停止及错误路径联动控制；GPIO 高电平开启 |
 | 状态 LED | `status_led` | PB3 | `MDI_IO_Write(status_led, 0/1)` | 普通 GPIO 电平输出 |
 | TLED | `tled` | PA12 | `MDI_IO_Write(tled, 0/1)` | 普通 GPIO 电平输出 |
 | 发热控制 | `heat` | PB10（RTIN1）、PB11（RTIN2） | `MDI_IO_Write(heat, value)` | 低频 PWM 由应用产生，不绑定专用 PWM 外设 |

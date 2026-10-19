@@ -132,7 +132,7 @@ static void board_gpio_init(void)
                      GPIO_PINS_3 | GPIO_PINS_7 | GPIO_PINS_8 |
                      GPIO_PINS_9 | GPIO_PINS_10 | GPIO_PINS_11);
     gpio_init_output(GPIOC, GPIO_PINS_6 | GPIO_PINS_7 | GPIO_PINS_8 |
-                     GPIO_PINS_9);
+                     GPIO_PINS_9 | GPIO_PINS_12);
     gpio_init_output(GPIOD, GPIO_PINS_2);
     gpio_init_input(GPIOB, GPIO_PINS_4 | GPIO_PINS_5 | GPIO_PINS_6 |
                     GPIO_PINS_12 | GPIO_PINS_13 | GPIO_PINS_14);

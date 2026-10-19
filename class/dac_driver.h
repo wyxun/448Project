@@ -10,6 +10,7 @@ extern "C" {
 
 #define DAC_DRIVER_MAX_FREQUENCY_HZ 20000U
 #define DAC_DRIVER_SINE_TABLE_SIZE 256U
+#define DAC_DRIVER_AMPLITUDE_FULL_SCALE_PERCENT 100U
 
 typedef enum {
     DAC_DRIVER_RESULT_OK = 0,
@@ -44,6 +45,8 @@ typedef struct {
     dac_driver_wave_t tEnvelope;
     uint32_t wSampleFrequencyHz;
     dac_driver_state_t eState;
+    uint8_t aachCarrierTable[2][DAC_DRIVER_SINE_TABLE_SIZE];
+    volatile uint8_t chActiveCarrierTable;
 } dac_driver_t;
 
 dac_driver_result_t dac_driver_Init(
@@ -61,6 +64,16 @@ dac_driver_result_t dac_driver_SetFrequencies(
     dac_driver_t *ptThis,
     uint32_t wCarrierFrequencyHz,
     uint32_t wEnvelopeFrequencyHz);
+
+/**
+ * @brief Set DACB amplitude by building and swapping its sample table.
+ * @param ptThis Caller-owned module instance.
+ * @param chAmplitudePercent Peak amplitude in 0..100 percent (valley at 0).
+ * @return Result code; invalid inputs leave the active table unchanged.
+ */
+dac_driver_result_t dac_driver_SetCarrierAmplitude(
+    dac_driver_t *ptThis,
+    uint8_t chAmplitudePercent);
 
 /* 由板级 TMR1 中断直接调用，消费对象中已换算的执行参数。 */
 void dac_driver_IsrStep(dac_driver_t *ptThis);

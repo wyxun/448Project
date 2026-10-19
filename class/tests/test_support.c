@@ -12,7 +12,7 @@ unsigned test_read_calls;
 int test_base_fail;
 unsigned test_registrations;
 unsigned test_timer_running;
-unsigned test_gpio[5];
+unsigned test_gpio[6];
 static uint8_t s_rx[256];
 static uint32_t s_length;
 void test_reset(void)

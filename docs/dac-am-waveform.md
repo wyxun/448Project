@@ -9,9 +9,15 @@
 通过 RTT MShell 或已配置的串口 MShell 输入：
 
 ```text
+dac start 50 500 50
 dac start 50 500
 dac stop
 ```
+
+`dac start <A_Hz> <B_Hz> [B_percent 0..100]` 的第三个参数调节 DACB
+通道的峰值摆幅，默认 100%。比例以谷底 0 码为基准等比缩放；例如 50% 时
+样本在 0～127 之间，谷底始终为 0。双缓冲查表在命令处理时生成，采样 ISR 只查表；
+DACA 通道保持原有幅度。重复执行 `dac start` 可用新比例和频率重新配置输出。
 
 `start` 同时开始 DAC 输出和三路波形采集；`stop` 停止新样本，
 查看器可保留历史。再次 start 会清空 MCU 的旧批次和 RTT

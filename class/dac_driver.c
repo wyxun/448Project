@@ -5,7 +5,7 @@
  * @date 2026-10-08
  */
 // A 通道（DACA）做低频包络（Envelope）
-// B 通道（DACB）做高频载波（Carrier）
+// B 通道（DACB）做高频载波（Carrier），支持调整载波幅值。
 
 #include "dac_driver.h"
 
@@ -46,6 +46,28 @@ static const uint8_t s_chSineTable[DAC_DRIVER_SINE_TABLE_SIZE] = {
     115U, 118U, 121U, 124U,
 
 };
+
+/**
+ * @brief Build one amplitude-scaled carrier/envelope table outside the ISR.
+ * @param ptThis DAC driver instance receiving the prepared table.
+ * @param chTable Table index to build.
+ * @param chAmplitudePercent Peak amplitude in percent (valley fixed at 0).
+ * @return None.
+ */
+static void _dac_driver_BuildCarrierTable(
+    dac_driver_t *ptThis,
+    uint8_t chTable,
+    uint8_t chAmplitudePercent)
+{
+    uint16_t hwIndex = 0U;
+    for (hwIndex = 0U; hwIndex < DAC_DRIVER_SINE_TABLE_SIZE; ++hwIndex) {
+        const int32_t wBaseValue = (int32_t)s_chSineTable[hwIndex];
+        const int32_t wScaledValue = (wBaseValue
+            * (int32_t)chAmplitudePercent)
+                / (int32_t)DAC_DRIVER_AMPLITUDE_FULL_SCALE_PERCENT;
+        ptThis->aachCarrierTable[chTable][hwIndex] = (uint8_t)wScaledValue;
+    }
+}
 
 /**
  * @brief Check whether the driver accepts control operations.
@@ -153,6 +175,7 @@ void dac_driver_IsrStep(dac_driver_t *ptThis)
 {
     uint8_t chCarrierValue = 0U;
     uint8_t chEnvelopeValue = 0U;
+    uint8_t chCarrierTable = 0U;
 
     if ((ptThis == NULL) || (ptThis->eState != DAC_DRIVER_STATE_RUNNING)) {
         return;
@@ -160,7 +183,8 @@ void dac_driver_IsrStep(dac_driver_t *ptThis)
 
     ptThis->tCarrier.wPhase += ptThis->tCarrier.wPhaseStepPerSample;
     ptThis->tEnvelope.wPhase += ptThis->tEnvelope.wPhaseStepPerSample;
-    chCarrierValue = s_chSineTable[
+    chCarrierTable = ptThis->chActiveCarrierTable;
+    chCarrierValue = ptThis->aachCarrierTable[chCarrierTable][
         (uint8_t)(ptThis->tCarrier.wPhase >> 24)];
     chEnvelopeValue = (uint8_t)(255U - s_chSineTable[
         (uint8_t)(ptThis->tEnvelope.wPhase >> 24)]);
@@ -198,6 +222,10 @@ dac_driver_result_t dac_driver_Init(
     MDI_IO_Write(dac_oe, 0U);
     (void)memset(ptThis, 0, sizeof(*ptThis));
     ptThis->eState = DAC_DRIVER_STATE_UNINITIALIZED;
+    _dac_driver_BuildCarrierTable(ptThis, 0U,
+        DAC_DRIVER_AMPLITUDE_FULL_SCALE_PERCENT);
+    _dac_driver_BuildCarrierTable(ptThis, 1U,
+        DAC_DRIVER_AMPLITUDE_FULL_SCALE_PERCENT);
     eStatus = MDI_TIMER_Stop(dac_sample_timer);
     if (eStatus != MDI_OK) {
         ptThis->eState = DAC_DRIVER_STATE_ERROR;
@@ -266,6 +294,32 @@ dac_driver_result_t dac_driver_SetFrequencies(
         ptThis->tEnvelope.wPhaseStepPerSample = wEnvelopePhaseStep;
         ptThis->tEnvelope.wPhase = 0U;
         ptThis->tEnvelope.bValueValid = false;
+    }
+    return DAC_DRIVER_RESULT_OK;
+}
+
+dac_driver_result_t dac_driver_SetCarrierAmplitude(
+    dac_driver_t *ptThis,
+    uint8_t chAmplitudePercent)
+{
+    uint8_t chInactiveTable = 0U;
+
+    if (ptThis == NULL) {
+        return DAC_DRIVER_RESULT_NULL;
+    }
+    if (!_dac_driver_IsReady(ptThis)) {
+        return DAC_DRIVER_RESULT_NOT_READY;
+    }
+    if (chAmplitudePercent > DAC_DRIVER_AMPLITUDE_FULL_SCALE_PERCENT) {
+        return DAC_DRIVER_RESULT_INVALID_ARGUMENT;
+    }
+
+    chInactiveTable = (uint8_t)(ptThis->chActiveCarrierTable ^ 1U);
+    _dac_driver_BuildCarrierTable(ptThis, chInactiveTable,
+                                   chAmplitudePercent);
+    safe_atom_code() {
+        ptThis->chActiveCarrierTable = chInactiveTable;
+        ptThis->tCarrier.bValueValid = false;
     }
     return DAC_DRIVER_RESULT_OK;
 }
