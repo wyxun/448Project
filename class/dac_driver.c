@@ -186,8 +186,12 @@ void dac_driver_IsrStep(dac_driver_t *ptThis)
     chCarrierTable = ptThis->chActiveCarrierTable;
     chCarrierValue = ptThis->aachCarrierTable[chCarrierTable][
         (uint8_t)(ptThis->tCarrier.wPhase >> 24)];
-    chEnvelopeValue = (uint8_t)(255U - s_chSineTable[
-        (uint8_t)(ptThis->tEnvelope.wPhase >> 24)]);
+    if (ptThis->eEnvelopeWaveType == DAC_DRIVER_WAVE_DIGITAL) {
+        chEnvelopeValue = ((ptThis->tEnvelope.wPhase >> 31) == 0U) ? 255U : 0U;
+    } else {
+        chEnvelopeValue = (uint8_t)(255U - s_chSineTable[
+            (uint8_t)(ptThis->tEnvelope.wPhase >> 24)]);
+    }
 
     if (!ptThis->tCarrier.bValueValid
         || (ptThis->tCarrier.chLastValue != chCarrierValue)) {
@@ -222,6 +226,7 @@ dac_driver_result_t dac_driver_Init(
     MDI_IO_Write(dac_oe, 0U);
     (void)memset(ptThis, 0, sizeof(*ptThis));
     ptThis->eState = DAC_DRIVER_STATE_UNINITIALIZED;
+    ptThis->eEnvelopeWaveType = DAC_DRIVER_WAVE_SINE;
     _dac_driver_BuildCarrierTable(ptThis, 0U,
         DAC_DRIVER_AMPLITUDE_FULL_SCALE_PERCENT);
     _dac_driver_BuildCarrierTable(ptThis, 1U,
@@ -320,6 +325,34 @@ dac_driver_result_t dac_driver_SetCarrierAmplitude(
     safe_atom_code() {
         ptThis->chActiveCarrierTable = chInactiveTable;
         ptThis->tCarrier.bValueValid = false;
+    }
+    return DAC_DRIVER_RESULT_OK;
+}
+
+/**
+ * @brief Configure the envelope waveform type (sine or digital square).
+ * @param ptThis Caller-owned module instance.
+ * @param eWaveType Envelope wave mode.
+ * @return Module result code; invalid inputs leave the mode unchanged.
+ */
+dac_driver_result_t dac_driver_SetWaveType(
+    dac_driver_t *ptThis,
+    dac_driver_wave_type_t eWaveType)
+{
+    if (ptThis == NULL) {
+        return DAC_DRIVER_RESULT_NULL;
+    }
+    if (!_dac_driver_IsReady(ptThis)) {
+        return DAC_DRIVER_RESULT_NOT_READY;
+    }
+    if ((eWaveType != DAC_DRIVER_WAVE_SINE)
+        && (eWaveType != DAC_DRIVER_WAVE_DIGITAL)) {
+        return DAC_DRIVER_RESULT_INVALID_ARGUMENT;
+    }
+
+    safe_atom_code() {
+        ptThis->eEnvelopeWaveType = eWaveType;
+        ptThis->tEnvelope.bValueValid = false;
     }
     return DAC_DRIVER_RESULT_OK;
 }

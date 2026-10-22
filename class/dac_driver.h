@@ -28,6 +28,11 @@ typedef enum {
     DAC_DRIVER_STATE_ERROR,
 } dac_driver_state_t;
 
+typedef enum {
+    DAC_DRIVER_WAVE_SINE = 0,
+    DAC_DRIVER_WAVE_DIGITAL,
+} dac_driver_wave_type_t;
+
 typedef struct {
     /* DAC GPIOs are compile-time resources bound by mdi/instance.h. */
     uint32_t wSampleFrequencyHz;
@@ -45,6 +50,7 @@ typedef struct {
     dac_driver_wave_t tEnvelope;
     uint32_t wSampleFrequencyHz;
     dac_driver_state_t eState;
+    dac_driver_wave_type_t eEnvelopeWaveType;
     uint8_t aachCarrierTable[2][DAC_DRIVER_SINE_TABLE_SIZE];
     volatile uint8_t chActiveCarrierTable;
 } dac_driver_t;
@@ -52,6 +58,16 @@ typedef struct {
 dac_driver_result_t dac_driver_Init(
     dac_driver_t *ptThis,
     const dac_driver_cfg_t *ptCfg);
+
+/**
+ * @brief Configure the envelope waveform type (sine or digital square).
+ * @param ptThis Caller-owned module instance.
+ * @param eWaveType Envelope wave mode.
+ * @return Module result code; invalid inputs leave the mode unchanged.
+ */
+dac_driver_result_t dac_driver_SetWaveType(
+    dac_driver_t *ptThis,
+    dac_driver_wave_type_t eWaveType);
 
 /**
  * @brief Validate and set carrier and envelope frequencies as one update.

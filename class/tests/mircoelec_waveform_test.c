@@ -10,7 +10,8 @@
 extern mircoelec_t tMircoelec;
 extern mircoelec_cfg_t tMircoelecCfg;
 extern dac_driver_result_t mircoelec_StartWaveform(
-    mircoelec_t *ptThis, uint32_t wAHz, uint32_t wBHz);
+    mircoelec_t *ptThis, dac_driver_wave_type_t eWaveType,
+    uint32_t wAHz, uint32_t wBHz);
 extern dac_driver_result_t mircoelec_StopWaveform(mircoelec_t *ptThis);
 
 static unsigned s_samples;
@@ -97,8 +98,8 @@ static void synchronous_stream_test(void)
     step(64U);
     flush();
     assert(s_samples == 0U);
-    assert(mircoelec_StartWaveform(&tMircoelec, 50U, 500U)
-        == DAC_DRIVER_RESULT_OK);
+    assert(mircoelec_StartWaveform(&tMircoelec, DAC_DRIVER_WAVE_SINE,
+        50U, 500U) == DAC_DRIVER_RESULT_OK);
     step(199U);
     flush();
     assert(s_samples == 0U);
@@ -119,16 +120,16 @@ static void synchronous_stream_test(void)
         assert(fabs((double)s_last_values[1] / s_scales[1] - b) < 0.04);
         assert(fabs((double)s_last_values[2] / s_scales[2] - a * b) < 0.04);
     }
-    assert(mircoelec_StartWaveform(&tMircoelec, 20001U, 500U)
-        == DAC_DRIVER_RESULT_INVALID_ARGUMENT);
+    assert(mircoelec_StartWaveform(&tMircoelec, DAC_DRIVER_WAVE_SINE,
+        20001U, 500U) == DAC_DRIVER_RESULT_INVALID_ARGUMENT);
     step(200U);
     flush();
     assert(s_samples == 401U && s_last_index == 400U);
 
     /* Leave one sample unsent, then restart: it must be discarded. */
     step(200U);
-    assert(mircoelec_StartWaveform(&tMircoelec, 100U, 1000U)
-        == DAC_DRIVER_RESULT_OK);
+    assert(mircoelec_StartWaveform(&tMircoelec, DAC_DRIVER_WAVE_SINE,
+        100U, 1000U) == DAC_DRIVER_RESULT_OK);
     flush();
     assert(s_samples == 401U);
     step(200U);
@@ -140,8 +141,8 @@ static void synchronous_stream_test(void)
     assert(s_samples == 402U);
 
     test_start_fail = 1;
-    assert(mircoelec_StartWaveform(&tMircoelec, 50U, 500U)
-        == DAC_DRIVER_RESULT_IO);
+    assert(mircoelec_StartWaveform(&tMircoelec, DAC_DRIVER_WAVE_SINE,
+        50U, 500U) == DAC_DRIVER_RESULT_IO);
     step(64U);
     flush();
     assert(s_samples == 402U);
@@ -202,10 +203,46 @@ static void endpoints_and_backpressure_test(void)
     assert(s_samples == before && test_irq_depth == 0U);
 }
 
+static void digital_square_waveform_test(void)
+{
+    test_reset();
+    s_samples = 0U;
+    assert(mircoelec_Init((uintptr_t)&tMircoelec,
+        (uintptr_t)&tMircoelecCfg) == MODUS_SUCCESS);
+    assert(mircoelec_StartWaveform(&tMircoelec, DAC_DRIVER_WAVE_DIGITAL,
+        50U, 500U) == DAC_DRIVER_RESULT_OK);
+    step(200U);
+    flush();
+    assert(s_samples == 1U);
+
+    unsigned high_count = 0U;
+    unsigned low_count = 0U;
+
+    for (unsigned n = 1U; n < 200U; n++) {
+        step(200U);
+        flush();
+        assert(s_samples == n + 1U);
+        /* In digital mode, EnvA (channel 0) must be strictly 0 or 255 */
+        assert((s_last_values[0] == 0) || (s_last_values[0] == 255));
+        if (s_last_values[0] == 255) {
+            high_count++;
+        } else {
+            low_count++;
+        }
+    }
+
+    /* 50 Hz wave over 199 ms should have roughly equal 50% duty split */
+    assert(high_count > 90U && high_count < 110U);
+    assert(low_count > 90U && low_count < 110U);
+
+    assert(mircoelec_StopWaveform(&tMircoelec) == DAC_DRIVER_RESULT_OK);
+}
+
 int main(void)
 {
     synchronous_stream_test();
+    digital_square_waveform_test();
     endpoints_and_backpressure_test();
-    puts("DAC waveform: synchronization, AM, restart, stop, errors passed");
+    puts("DAC waveform: synchronization, AM, dig square, stop passed");
     return 0;
 }

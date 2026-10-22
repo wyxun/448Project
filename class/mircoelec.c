@@ -96,12 +96,14 @@ static dac_driver_result_t _mircoelec_LatchDacError(
 /**
  * @brief Set both DAC frequencies and enable waveform output.
  * @param ptThis Initialized Class instance.
+ * @param eWaveType Envelope wave mode (sine or digital square).
  * @param wAHz DACA/envelope frequency in Hz.
  * @param wBHz DACB/carrier frequency in Hz.
  * @return DAC driver result; invalid frequencies leave both settings intact.
  */
 dac_driver_result_t mircoelec_StartWaveform(
     mircoelec_t *ptThis,
+    dac_driver_wave_type_t eWaveType,
     uint32_t wAHz,
     uint32_t wBHz)
 {
@@ -114,6 +116,10 @@ dac_driver_result_t mircoelec_StartWaveform(
         return DAC_DRIVER_RESULT_NOT_READY;
     }
 
+    eResult = dac_driver_SetWaveType(&ptThis->tDac, eWaveType);
+    if (eResult != DAC_DRIVER_RESULT_OK) {
+        return eResult;
+    }
     eResult = dac_driver_SetFrequencies(&ptThis->tDac, wBHz, wAHz);
     if (eResult == DAC_DRIVER_RESULT_INVALID_ARGUMENT) {
         return eResult;
@@ -219,26 +225,35 @@ static void _mircoelec_DacCommand(const char *pchArgs)
     dac_driver_result_t eResult = DAC_DRIVER_RESULT_OK;
 
     if (mshell_ConsumeWord(&pchText, "start")) {
+        dac_driver_wave_type_t eWaveType = DAC_DRIVER_WAVE_SINE;
+        if (mshell_ConsumeWord(&pchText, "dig")) {
+            eWaveType = DAC_DRIVER_WAVE_DIGITAL;
+        } else if (mshell_ConsumeWord(&pchText, "sin")) {
+            eWaveType = DAC_DRIVER_WAVE_SINE;
+        } else {
+            eWaveType = DAC_DRIVER_WAVE_SINE;
+        }
+
         if ((mshell_Parse(&pchText, &wAHz) != MSHELL_PARSE_OK)
             || (mshell_Parse(&pchText, &wBHz) != MSHELL_PARSE_OK)
             || (wAHz > DAC_DRIVER_MAX_FREQUENCY_HZ)
             || (wBHz > DAC_DRIVER_MAX_FREQUENCY_HZ)) {
             MLOGF(W,
-                "Usage: dac start <A_Hz> <B_Hz> [B_percent 0..100]\r\n");
+                "Usage: dac start [dig|sin] <A_Hz> <B_Hz> [B_percent]\r\n");
             return;
         }
         if (!mshell_AtEnd(pchText)
             && (mshell_Parse(&pchText, &wBAmplitudePercent)
                 != MSHELL_PARSE_OK)) {
             MLOGF(W,
-                "Usage: dac start <A_Hz> <B_Hz> [B_percent 0..100]\r\n");
+                "Usage: dac start [dig|sin] <A_Hz> <B_Hz> [B_percent]\r\n");
             return;
         }
         if (!mshell_AtEnd(pchText)
             || (wBAmplitudePercent
                 > DAC_DRIVER_AMPLITUDE_FULL_SCALE_PERCENT)) {
             MLOGF(W,
-                "Usage: dac start <A_Hz> <B_Hz> [B_percent 0..100]\r\n");
+                "Usage: dac start [dig|sin] <A_Hz> <B_Hz> [B_percent]\r\n");
             return;
         }
         eResult = dac_driver_SetCarrierAmplitude(&tMircoelec.tDac,
@@ -247,9 +262,10 @@ static void _mircoelec_DacCommand(const char *pchArgs)
             MLOGF(W, "DAC start failed: %d\r\n", (int)eResult);
             return;
         }
-        eResult = mircoelec_StartWaveform(&tMircoelec, wAHz, wBHz);
+        eResult = mircoelec_StartWaveform(&tMircoelec, eWaveType, wAHz, wBHz);
         if (eResult == DAC_DRIVER_RESULT_OK) {
-            MLOGF(I, "DAC started: A=%lu Hz B=%lu Hz B_amp=%lu%%\r\n",
+            MLOGF(I, "DAC started: mode=%s A=%lu Hz B=%lu Hz B_amp=%lu%%\r\n",
+                  (eWaveType == DAC_DRIVER_WAVE_DIGITAL) ? "dig" : "sin",
                   (unsigned long)wAHz, (unsigned long)wBHz,
                   (unsigned long)wBAmplitudePercent);
         } else {
@@ -268,11 +284,11 @@ static void _mircoelec_DacCommand(const char *pchArgs)
         }
         return;
     }
-    MLOGF(W, "Usage: dac start <A_Hz> <B_Hz> | dac stop\r\n");
+    MLOGF(W, "Usage: dac start [dig|sin] <A_Hz> <B_Hz> | dac stop\r\n");
 }
 
 MODUS_SHELL_CMD(dac, _mircoelec_DacCommand,
-                "DAC sine: start <A_Hz> <B_Hz> [B_percent 0..100] | stop");
+                "DAC waveform: start [dig|sin] <A_Hz> <B_Hz> [B_percent] | stop");
 #endif
 
 MODUS_DECLARE_OBJECT(mircoelec, Mircoelec,
