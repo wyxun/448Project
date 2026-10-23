@@ -23,6 +23,7 @@
 | 母线能量 PWM | `dac_pwm` | TMR3 CH1，DACPWM（PA6） | `MDI_PWM_Stage` + `MDI_PWM_Commit` | TMR3=96 MHz；ARR=999、PSC=19，4.8 kHz；compare 0..1000；SafeStop 强制高电平，经 NPN 反相后为零控制量 |
 | 固定 448K PWM | `pwm1` | TMR1 CH1 / PA8 PWM1N；CH1C / PA7 PWM1P | `MDI_PWM_Enable` / `MDI_PWM_SafeStop` | TMR1=96 MHz；ARR=213，compare=107，deadtime=11（约 114.6 ns）；实际 448.598 kHz、两路高电平约 44.86%；停机两路低电平 |
 | IR2110 关断 | `pt_sd` | PB1 经 S8050 反相到 IR2110 SD | `MDI_IO_Write(pt_sd, 0/1)` | MDI 逻辑 1=关断、0=放行；PB1 物理低=关断、高=放行 |
+| 散热风扇 | `pt_fan` | bit0=FAN2/PA5，bit1=FAN3/PA12 | `MDI_IO_Write(pt_fan, 0x03/0)` | 两路高电平开启；MVC 在 448K PWM 实际启用时开启，停止或错误时关闭 |
 | 匹配及头选择继电器 | `pt_relay` | bit0～5 对应客板 RL1～RL6，依次映射 PA15、PB3、PB4、PB5、PB6、PB7 | `MDI_IO_WriteMasked(pt_relay, 0x38, value)` | RL1～RL3 匹配预留；RL4～RL6（PB5～PB7）选头，CAP=0x10、RES=0x38，Stop=0 |
 | 状态 LED | `pt_led_status` | PA11（STATELED） | `MDI_IO_Write(pt_led_status, 0/1)` | 普通 GPIO 电平输出 |
 

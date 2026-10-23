@@ -26,19 +26,24 @@ extern uint8_t g_at32_client_serial_rx[AT32_CLIENT_STREAM_BUFFER_SIZE];
 #define AT32_CLIENT_SD_PORTS(X, V) X(V, GPIOB, AT32_CLIENT_SD_PINS)
 MDI_AT32_IO_BIND_OUTPUT_CAPS(pt_sd, 1, AT32_CLIENT_SD_PORTS, MDI_IO_CAP_OUTPUT)
 
-/* Client RL1..RL6: PA15, PB3, PB4, PB5, PB6, PB7. */
 #define AT32_CLIENT_RELAY_PINS(X, V, ...) \
-    X(V, 1, 3, 0) X(V, 2, 4, 0) X(V, 3, 5, 0) \
-    X(V, 4, 6, 0) X(V, 5, 7, 0)
-#define AT32_CLIENT_RELAY1_PIN(X, V, ...) X(V, 0, 15, 0)
+    X(V, 0, 7, 0) X(V, 1, 6, 0) X(V, 2, 5, 0) \
+    X(V, 3, 4, 0) X(V, 4, 3, 0)
+#define AT32_CLIENT_RELAY6_PINS(X, V, ...) X(V, 5, 15, 0)
 #define AT32_CLIENT_RELAY_PORTS(X, V) \
     X(V, GPIOB, AT32_CLIENT_RELAY_PINS) \
-    X(V, GPIOA, AT32_CLIENT_RELAY1_PIN)
+    X(V, GPIOA, AT32_CLIENT_RELAY6_PINS)
 MDI_AT32_IO_BIND_OUTPUT_CAPS(pt_relay, 6, AT32_CLIENT_RELAY_PORTS, MDI_IO_CAP_OUTPUT)
 
 #define AT32_CLIENT_LED_PINS(X, V, ...) X(V, 0, 11, 0)
 #define AT32_CLIENT_LED_PORTS(X, V) X(V, GPIOA, AT32_CLIENT_LED_PINS)
 MDI_AT32_IO_BIND_OUTPUT_CAPS(pt_led_status, 1, AT32_CLIENT_LED_PORTS, MDI_IO_CAP_OUTPUT)
+
+/* FAN2/FAN3 are active-high GPIO controls on PA5/PA12. */
+#define AT32_CLIENT_FAN_PINS(X, V, ...) X(V, 0, 5, 0) X(V, 1, 12, 0)
+#define AT32_CLIENT_FAN_PORTS(X, V) X(V, GPIOA, AT32_CLIENT_FAN_PINS)
+MDI_AT32_IO_BIND_OUTPUT_CAPS(pt_fan, 2, AT32_CLIENT_FAN_PORTS,
+                             MDI_IO_CAP_OUTPUT)
 
 /* compare == period is required for a genuine 100% high DACPWM endpoint. */
 #define AT32_CLIENT_DAC_PWM_CHANNELS(X)                                         \

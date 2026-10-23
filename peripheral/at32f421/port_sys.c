@@ -162,8 +162,8 @@ static void output_gpio_init(void)
     gpio_bits_write(GPIOB, GPIO_PINS_3 | GPIO_PINS_4 | GPIO_PINS_5 |
                     GPIO_PINS_6 | GPIO_PINS_7, FALSE);
     gpio_bits_write(GPIOB, GPIO_PINS_1, FALSE);
-    gpio_bits_write(GPIOA, GPIO_PINS_7 | GPIO_PINS_8 | GPIO_PINS_11 |
-                    GPIO_PINS_15, FALSE);
+    gpio_bits_write(GPIOA, GPIO_PINS_5 | GPIO_PINS_7 | GPIO_PINS_8 |
+                    GPIO_PINS_11 | GPIO_PINS_12 | GPIO_PINS_15, FALSE);
     gpio_bits_write(GPIOA, GPIO_PINS_6, TRUE);
     gpio_default_para_init(&tGpio);
     tGpio.gpio_drive_strength = GPIO_DRIVE_STRENGTH_MODERATE;
@@ -173,8 +173,9 @@ static void output_gpio_init(void)
     tGpio.gpio_pins = GPIO_PINS_1 | GPIO_PINS_3 | GPIO_PINS_4 |
                       GPIO_PINS_5 | GPIO_PINS_6 | GPIO_PINS_7;
     gpio_init(GPIOB, &tGpio);
-    tGpio.gpio_pins = GPIO_PINS_6 | GPIO_PINS_7 | GPIO_PINS_8 |
-                      GPIO_PINS_11 | GPIO_PINS_15;
+    tGpio.gpio_pins = GPIO_PINS_5 | GPIO_PINS_6 | GPIO_PINS_7 |
+                      GPIO_PINS_8 | GPIO_PINS_11 | GPIO_PINS_12 |
+                      GPIO_PINS_15;
     gpio_init(GPIOA, &tGpio);
 }
 

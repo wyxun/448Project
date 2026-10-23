@@ -5,6 +5,7 @@
  * @date 2026-10-14
  */
 #include "mvc.h"
+#include "mdi/instance.h"
 #include "mdebug/mshell.h"
 #include "mdebug/util_debug.h"
 #include <stddef.h>
@@ -12,6 +13,20 @@
 
 #define MVC_RELAY_SETTLE_MS 30U
 #define MVC_CONTROL_SETTLE_MS 1U
+
+/**
+ * @brief Enable or disable both cooling fans when the state changes.
+ * @param ptThis MVC instance holding the last commanded fan state.
+ * @param bEnable True enables FAN2 and FAN3; false disables both.
+ * @return None.
+ */
+static void _mvc_SetFans(mvc_t *ptThis, bool bEnable)
+{
+    if (ptThis->bFansEnabled != bEnable) {
+        MDI_IO_Write(pt_fan, bEnable ? 0x03U : 0U);
+        ptThis->bFansEnabled = bEnable;
+    }
+}
 
 /** @copydoc mvc_Init */
 int mvc_Init(uintptr_t wObjectAddr, uintptr_t wObjectCfgAddr)
@@ -22,6 +37,8 @@ int mvc_Init(uintptr_t wObjectAddr, uintptr_t wObjectCfgAddr)
     int nResult = MODUS_EFAIL;
     bool bRegistered = false;
     if (ptThis == NULL) { return MODUS_EFAIL; }
+    MDI_IO_Write(pt_fan, 0U);
+    ptThis->bFansEnabled = false;
     bRegistered = ptThis->tBase.wParent == wObjectAddr;
     /* A registered base contains live list links and must survive recovery. */
     if (!bRegistered) { (void)memset(ptThis, 0, sizeof(*ptThis)); }
@@ -77,10 +94,12 @@ int mvc_Run(uintptr_t wObjectAddr)
     eRun = rf448_driver_Run(&ptThis->tRf448);
     eResult = rf448_driver_GetStatus(&ptThis->tRf448, &tStatus);
     if ((eRun == fsm_rt_err) || (eResult != RF448_RESULT_OK)) {
+        _mvc_SetFans(ptThis, false);
         ptThis->eState = MVC_STATE_ERROR;
         MLOGF(E, "MVC RF448 failed=%u\r\n", (unsigned)tStatus.eLastError);
         return MODUS_EFAIL;
     }
+    _mvc_SetFans(ptThis, tStatus.bOutputEnabled);
     ptThis->eState = tStatus.eState == RF448_STATE_IDLE
                   ? MVC_STATE_IDLE : MVC_STATE_RUNNING;
     return MODUS_SUCCESS;
@@ -153,6 +172,7 @@ static void _mvc_ShellRf448(const char *pchArgs)
         _mvc_ShellStart(pchArgs);
     } else if (mshell_ConsumeWord(&pchArgs, "stop") && mshell_AtEnd(pchArgs)) {
         eResult = rf448_driver_Stop(&tMvc.tRf448);
+        _mvc_SetFans(&tMvc, false);
         MLOGF(I, "RF448 stop result=%u\r\n", (unsigned)eResult);
     } else if (mshell_AtEnd(pchArgs)
         || (mshell_ConsumeWord(&pchArgs, "status") && mshell_AtEnd(pchArgs))) {

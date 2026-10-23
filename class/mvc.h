@@ -21,6 +21,7 @@ typedef struct {
     modus_base_cfg_t tBaseCfg;
     rf448_driver_t tRf448;
     mvc_state_t eState;
+    bool bFansEnabled;
 } mvc_t;
 /**
  * @brief Initialize the owned driver and register its parent MODUS object.
