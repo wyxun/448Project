@@ -8,6 +8,7 @@
 #include "mdi/instance.h"
 #include "mdebug/mshell.h"
 #include "mdebug/util_debug.h"
+#include "perf_counter.h"
 #include <stddef.h>
 #include <string.h>
 
@@ -28,6 +29,40 @@ static void _mvc_SetFans(mvc_t *ptThis, bool bEnable)
     }
 }
 
+/**
+ * @brief Log all latest averaged ADC codes once per second.
+ * @param ptThis MVC instance holding the log deadline.
+ * @return None; read status is printed with each value.
+ */
+static void _mvc_LogAdc(mvc_t *ptThis)
+{
+    mdi_adc_value_t tIvadc = {0};
+    mdi_adc_value_t tNtc12 = {0};
+    mdi_adc_value_t tNtc11 = {0};
+    mdi_adc_value_t tRfv = {0};
+    mdi_adc_value_t tRfi = {0};
+    mdi_status_t eIvadc;
+    mdi_status_t eNtc12;
+    mdi_status_t eNtc11;
+    mdi_status_t eRfv;
+    mdi_status_t eRfi;
+    if (!perfc_is_time_out_ms(1000U, &ptThis->lAdcLogDeadline, true)) {
+        return;
+    }
+    eIvadc = MDI_ADC_Read(client_ivadc, &tIvadc);
+    eNtc12 = MDI_ADC_Read(client_ntc12, &tNtc12);
+    eNtc11 = MDI_ADC_Read(client_ntc11, &tNtc11);
+    eRfv = MDI_ADC_Read(client_rfv, &tRfv);
+    eRfi = MDI_ADC_Read(client_rfi, &tRfi);
+    MLOGF(T, "ADC IVADC=%u(%d) NTC12=%u(%d) NTC11=%u(%d) "
+             "RF0V=%u(%d) RF0I=%u(%d)\r\n",
+          (unsigned)tIvadc.wCode, (int)eIvadc,
+          (unsigned)tNtc12.wCode, (int)eNtc12,
+          (unsigned)tNtc11.wCode, (int)eNtc11,
+          (unsigned)tRfv.wCode, (int)eRfv,
+          (unsigned)tRfi.wCode, (int)eRfi);
+}
+
 /** @copydoc mvc_Init */
 int mvc_Init(uintptr_t wObjectAddr, uintptr_t wObjectCfgAddr)
 {
@@ -39,6 +74,7 @@ int mvc_Init(uintptr_t wObjectAddr, uintptr_t wObjectCfgAddr)
     if (ptThis == NULL) { return MODUS_EFAIL; }
     MDI_IO_Write(pt_fan, 0U);
     ptThis->bFansEnabled = false;
+    ptThis->lAdcLogDeadline = 0;
     bRegistered = ptThis->tBase.wParent == wObjectAddr;
     /* A registered base contains live list links and must survive recovery. */
     if (!bRegistered) { (void)memset(ptThis, 0, sizeof(*ptThis)); }
@@ -87,7 +123,11 @@ int mvc_Run(uintptr_t wObjectAddr)
     rf448_driver_status_t tStatus = {0};
     rf448_result_t eResult = RF448_RESULT_OK;
     fsm_rt_t eRun = fsm_rt_err;
-    if ((ptThis == NULL) || (ptThis->eState == MVC_STATE_UNINITIALIZED)
+    if (ptThis == NULL) { return MODUS_EFAIL; }
+    if (ptThis->eState != MVC_STATE_UNINITIALIZED) {
+        _mvc_LogAdc(ptThis);
+    }
+    if ((ptThis->eState == MVC_STATE_UNINITIALIZED)
         || (ptThis->eState == MVC_STATE_ERROR)) {
         return MODUS_EFAIL;
     }

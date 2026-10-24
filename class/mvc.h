@@ -22,6 +22,7 @@ typedef struct {
     rf448_driver_t tRf448;
     mvc_state_t eState;
     bool bFansEnabled;
+    int64_t lAdcLogDeadline;
 } mvc_t;
 /**
  * @brief Initialize the owned driver and register its parent MODUS object.

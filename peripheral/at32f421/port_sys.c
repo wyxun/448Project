@@ -40,7 +40,8 @@ static void adc_init(void)
     adc_reset(ADC1);
     adc_base_default_para_init(&tAdcBase);
     tAdcBase.sequence_mode = TRUE;
-    tAdcBase.repeat_mode = FALSE;
+    /* Fill the 10-scan DMA block after one software trigger. */
+    tAdcBase.repeat_mode = TRUE;
     tAdcBase.data_align = ADC_RIGHT_ALIGNMENT;
     tAdcBase.ordinary_channel_length = AT32_CLIENT_ADC_INPUT_COUNT;
     adc_base_config(ADC1, &tAdcBase);
