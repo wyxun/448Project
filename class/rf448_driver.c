@@ -8,12 +8,14 @@
 #include "mdi/instance.h"
 #include "mdebug/util_debug.h"
 #include "perfc_task_pt.h"
+#include "rf448_ntc_lut.h"
 #include <stddef.h>
 #include <string.h>
 
 #define RF448_HEAD_RELAY_MASK 0x38U
 #define RF448_CAP_RELAYS 0x10U
 #define RF448_RES_RELAYS 0x38U
+#define RF448_NTC_ADC_MAX_CODE 4095U
 
 /**
  * @brief Establish safe outputs even when one PWM provider reports failure.
@@ -158,6 +160,28 @@ static rf448_result_t _rf448_driver_EnableCarrier(rf448_driver_t *ptThis)
     return RF448_RESULT_OK;
 }
 
+static uint8_t _rf448_driver_ReadOverTemperature(int16_t *pnTemperatureDeciC)
+{
+    mdi_adc_value_t tValue = {0};
+    int16_t nTemperatureDeciC = 0;
+    if (pnTemperatureDeciC == NULL) { return 0U; }
+    if ((MDI_ADC_Read(client_ntc12, &tValue) == MDI_OK)
+        && rf448_driver_ConvertNtcAdcToDeciCelsius(
+            (uint16_t)tValue.wCode, &nTemperatureDeciC)
+        && (nTemperatureDeciC > RF448_OVERTEMP_THRESHOLD_DECI_C)) {
+        *pnTemperatureDeciC = nTemperatureDeciC;
+        return 12U;
+    }
+    if ((MDI_ADC_Read(client_ntc11, &tValue) == MDI_OK)
+        && rf448_driver_ConvertNtcAdcToDeciCelsius(
+            (uint16_t)tValue.wCode, &nTemperatureDeciC)
+        && (nTemperatureDeciC > RF448_OVERTEMP_THRESHOLD_DECI_C)) {
+        *pnTemperatureDeciC = nTemperatureDeciC;
+        return 11U;
+    }
+    return 0U;
+}
+
 /** @copydoc rf448_driver_Run */
 fsm_rt_t rf448_driver_Run(rf448_driver_t *ptThis)
 {
@@ -206,6 +230,18 @@ fsm_rt_t rf448_driver_Run(rf448_driver_t *ptThis)
                     return fsm_rt_err;
                 }
                 while (ptThis->eRequest != RF448_REQUEST_STOP) {
+                    int16_t nTemperatureDeciC = 0;
+                    uint8_t chNtc = _rf448_driver_ReadOverTemperature(
+                        &nTemperatureDeciC);
+                    if (chNtc != 0U) {
+                        MLOGF(E, "RF448 over-temperature NTC%u=%d.%dC; stopping\r\n",
+                              (unsigned)chNtc,
+                              (int)(nTemperatureDeciC / 10),
+                              (int)(nTemperatureDeciC % 10));
+                        eResult = rf448_driver_Stop(ptThis);
+                        if (eResult != RF448_RESULT_OK) { return fsm_rt_err; }
+                        break;
+                    }
                     if (ptThis->eRequest == RF448_REQUEST_ENERGY) {
                         eResult = _rf448_driver_ApplyEnergy(
                             ptThis->hwTargetEnergyPermille);
@@ -260,4 +296,15 @@ rf448_result_t rf448_driver_GetStatus(const rf448_driver_t *ptThis,
     ptStatus->hwTargetEnergyPermille = ptThis->hwTargetEnergyPermille;
     ptStatus->bOutputEnabled = MDI_PWM_IsEnabled(pwm1);
     return RF448_RESULT_OK;
+}
+
+/** @copydoc rf448_driver_ConvertNtcAdcToDeciCelsius */
+bool rf448_driver_ConvertNtcAdcToDeciCelsius(uint16_t wAdcCode,
+                                           int16_t *pnTemperatureDeciC)
+{
+    if ((pnTemperatureDeciC == NULL) || (wAdcCode == 0U)) {
+        return false;
+    }
+    *pnTemperatureDeciC = s_nRf448NtcTemperatureDeciC[wAdcCode];
+    return true;
 }

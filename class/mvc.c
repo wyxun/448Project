@@ -46,6 +46,12 @@ static void _mvc_LogAdc(mvc_t *ptThis)
     mdi_status_t eNtc11;
     mdi_status_t eRfv;
     mdi_status_t eRfi;
+    int16_t nNtc12TemperatureDeciC = 0;
+    int16_t nNtc11TemperatureDeciC = 0;
+    int32_t nNtc12Magnitude = 0;
+    int32_t nNtc11Magnitude = 0;
+    bool bNtc12TemperatureValid = false;
+    bool bNtc11TemperatureValid = false;
     if (!perfc_is_time_out_ms(1000U, &ptThis->lAdcLogDeadline, true)) {
         return;
     }
@@ -54,13 +60,35 @@ static void _mvc_LogAdc(mvc_t *ptThis)
     eNtc11 = MDI_ADC_Read(client_ntc11, &tNtc11);
     eRfv = MDI_ADC_Read(client_rfv, &tRfv);
     eRfi = MDI_ADC_Read(client_rfi, &tRfi);
+    bNtc12TemperatureValid = (eNtc12 == MDI_OK)
+        && rf448_driver_ConvertNtcAdcToDeciCelsius(
+            tNtc12.wCode, &nNtc12TemperatureDeciC);
+    bNtc11TemperatureValid = (eNtc11 == MDI_OK)
+        && rf448_driver_ConvertNtcAdcToDeciCelsius(
+            tNtc11.wCode, &nNtc11TemperatureDeciC);
+    nNtc12Magnitude = nNtc12TemperatureDeciC < 0
+                    ? -(int32_t)nNtc12TemperatureDeciC
+                    : (int32_t)nNtc12TemperatureDeciC;
+    nNtc11Magnitude = nNtc11TemperatureDeciC < 0
+                    ? -(int32_t)nNtc11TemperatureDeciC
+                    : (int32_t)nNtc11TemperatureDeciC;
     MLOGF(T, "ADC IVADC=%u(%d) NTC12=%u(%d) NTC11=%u(%d) "
-             "RF0V=%u(%d) RF0I=%u(%d)\r\n",
+             "RF0V=%u(%d) RF0I=%u(%d)\r\n"
+             "NTC12 temperature=%s%d.%dC(%s) "
+             "NTC11 temperature=%s%d.%dC(%s)\r\n",
           (unsigned)tIvadc.wCode, (int)eIvadc,
           (unsigned)tNtc12.wCode, (int)eNtc12,
           (unsigned)tNtc11.wCode, (int)eNtc11,
           (unsigned)tRfv.wCode, (int)eRfv,
-          (unsigned)tRfi.wCode, (int)eRfi);
+          (unsigned)tRfi.wCode, (int)eRfi,
+          nNtc12TemperatureDeciC < 0 ? "-" : "",
+          (int)(nNtc12Magnitude / 10),
+          (int)(nNtc12Magnitude % 10),
+          bNtc12TemperatureValid ? "valid" : "invalid",
+          nNtc11TemperatureDeciC < 0 ? "-" : "",
+          (int)(nNtc11Magnitude / 10),
+          (int)(nNtc11Magnitude % 10),
+          bNtc11TemperatureValid ? "valid" : "invalid");
 }
 
 /** @copydoc mvc_Init */
@@ -70,17 +98,11 @@ int mvc_Init(uintptr_t wObjectAddr, uintptr_t wObjectCfgAddr)
     const mvc_cfg_t *ptCfg = (const mvc_cfg_t *)wObjectCfgAddr;
     rf448_result_t eResult = RF448_RESULT_OK;
     int nResult = MODUS_EFAIL;
-    bool bRegistered = false;
     if (ptThis == NULL) { return MODUS_EFAIL; }
     MDI_IO_Write(pt_fan, 0U);
-    ptThis->bFansEnabled = false;
-    ptThis->lAdcLogDeadline = 0;
-    bRegistered = ptThis->tBase.wParent == wObjectAddr;
-    /* A registered base contains live list links and must survive recovery. */
-    if (!bRegistered) { (void)memset(ptThis, 0, sizeof(*ptThis)); }
+    (void)memset(ptThis, 0, sizeof(*ptThis));
     ptThis->eState = MVC_STATE_UNINITIALIZED;
-    if ((ptCfg == NULL) || (ptCfg->wObjectId == 0U)
-        || (bRegistered && (ptCfg->wObjectId != ptThis->tBase.wId))) {
+    if ((ptCfg == NULL) || (ptCfg->wObjectId == 0U)) {
         eResult = rf448_driver_Stop(&ptThis->tRf448);
         ptThis->eState = MVC_STATE_ERROR;
         MLOGF(E, "MVC invalid config; stop=%u\r\n", (unsigned)eResult);
@@ -88,22 +110,21 @@ int mvc_Init(uintptr_t wObjectAddr, uintptr_t wObjectCfgAddr)
     }
     eResult = rf448_driver_Init(&ptThis->tRf448, &ptCfg->tRf448Cfg);
     if (eResult != RF448_RESULT_OK) {
+        (void)rf448_driver_Stop(&ptThis->tRf448);
         ptThis->eState = MVC_STATE_ERROR;
         return MODUS_EFAIL;
     }
-    if (!bRegistered) {
-        ptThis->tBaseCfg.wId = ptCfg->wObjectId;
-        ptThis->tBaseCfg.wParent = wObjectAddr;
-        ptThis->tBaseCfg.FcnInterface.Clock = mvc_Clock;
-        ptThis->tBaseCfg.FcnInterface.Run = mvc_Run;
-        nResult = mbase_Init(&ptThis->tBase, &ptThis->tBaseCfg);
-        if (nResult != MODUS_SUCCESS) {
-            eResult = rf448_driver_Stop(&ptThis->tRf448);
-            ptThis->eState = MVC_STATE_ERROR;
-            MLOGF(E, "MVC registration failed=%d; stop=%u\r\n",
-                  nResult, (unsigned)eResult);
-            return MODUS_EFAIL;
-        }
+    ptThis->tBaseCfg.wId = ptCfg->wObjectId;
+    ptThis->tBaseCfg.wParent = wObjectAddr;
+    ptThis->tBaseCfg.FcnInterface.Clock = mvc_Clock;
+    ptThis->tBaseCfg.FcnInterface.Run = mvc_Run;
+    nResult = mbase_Init(&ptThis->tBase, &ptThis->tBaseCfg);
+    if (nResult != MODUS_SUCCESS) {
+        eResult = rf448_driver_Stop(&ptThis->tRf448);
+        ptThis->eState = MVC_STATE_ERROR;
+        MLOGF(E, "MVC registration failed=%d; stop=%u\r\n",
+              nResult, (unsigned)eResult);
+        return MODUS_EFAIL;
     }
     ptThis->eState = MVC_STATE_IDLE;
     return MODUS_SUCCESS;

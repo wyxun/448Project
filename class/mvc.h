@@ -29,8 +29,8 @@ typedef struct {
  * @param wObjectAddr Address of caller-owned MVC storage.
  * @param wObjectCfgAddr Address of MVC configuration.
  * @return MODUS_SUCCESS, otherwise MODUS_EFAIL with safe outputs.
- * @note Storage is zero-initialized by MODUS_DECLARE_OBJECT. Recovery keeps
- * the registered base intact and requires the same object ID.
+ * @note MODUS_DECLARE_OBJECT provides static storage; initialization registers
+ * the object once, following template_class_Init.
  */
 int mvc_Init(uintptr_t wObjectAddr, uintptr_t wObjectCfgAddr);
 /**

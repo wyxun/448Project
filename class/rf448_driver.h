@@ -12,6 +12,7 @@
 
 #define RF448_ENERGY_FULL_SCALE 1000U
 #define RF448_SETTLE_MAX_MS 500U
+#define RF448_OVERTEMP_THRESHOLD_DECI_C 900
 
 typedef enum {
     RF448_HEAD_CAP = 0, RF448_HEAD_RES,
@@ -98,4 +99,14 @@ rf448_result_t rf448_driver_Stop(rf448_driver_t *ptThis);
  */
 rf448_result_t rf448_driver_GetStatus(const rf448_driver_t *ptThis,
                                      rf448_driver_status_t *ptStatus);
+
+/**
+ * @brief Convert the 12-bit ADC code from either 10 kOhm B3950 NTC to deci-degrees Celsius.
+ * @param wAdcCode ADC code using a 0..4095 full scale.
+ * @param pnTemperatureDeciC Destination for temperature in 0.1 degrees Celsius.
+ * @return true for a valid non-rail ADC code and non-null output; false otherwise.
+ * @note Uses a precomputed table; codes 0 and 4095 are treated as short/open circuit.
+ */
+bool rf448_driver_ConvertNtcAdcToDeciCelsius(uint16_t wAdcCode,
+                                           int16_t *pnTemperatureDeciC);
 #endif
