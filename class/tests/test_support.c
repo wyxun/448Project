@@ -12,7 +12,8 @@ unsigned test_read_calls;
 int test_base_fail;
 unsigned test_registrations;
 unsigned test_timer_running;
-unsigned test_gpio[6];
+unsigned test_gpio[7];
+static modus_base_t *s_bases[4];
 static uint8_t s_rx[256];
 static uint32_t s_length;
 void test_reset(void)
@@ -78,7 +79,33 @@ int mbase_Init(modus_base_t *base, modus_base_cfg_t *cfg)
 {
     test_registrations++;
     base->wParent = cfg->wParent;
+    base->pchRingBuffer = cfg->pchRingBuffer;
+    base->hwRingSize = cfg->hwRingSize;
+    base->hwRead = base->hwWrite = 0U;
+    if (cfg->wId < 4U) { s_bases[cfg->wId] = base; }
     return test_base_fail ? MODUS_EFAIL : MODUS_SUCCESS;
+}
+int mbase_MessagePostToRing(uint32_t id, uint8_t *data, uint16_t len)
+{
+    modus_base_t *base = id < 4U ? s_bases[id] : NULL;
+    if (base == NULL || base->pchRingBuffer == NULL) { return MODUS_EFAIL; }
+    for (uint16_t i = 0; i < len; ++i) {
+        base->pchRingBuffer[base->hwWrite] = data[i];
+        base->hwWrite = (uint16_t)((base->hwWrite + 1U) % base->hwRingSize);
+        if (base->hwWrite == base->hwRead) {
+            base->hwRead = (uint16_t)((base->hwRead + 1U) % base->hwRingSize);
+        }
+    }
+    return MODUS_SUCCESS;
+}
+int mbase_MessagePendFromRing(modus_base_t *base, uint8_t *data, uint16_t len)
+{
+    uint16_t n = 0;
+    while (n < len && base->hwRead != base->hwWrite) {
+        data[n++] = base->pchRingBuffer[base->hwRead];
+        base->hwRead = (uint16_t)((base->hwRead + 1U) % base->hwRingSize);
+    }
+    return n;
 }
 bool test_timeout(uint32_t ms, int64_t *deadline, bool reload)
 {

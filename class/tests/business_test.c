@@ -1,6 +1,5 @@
 #include "dac_driver.h"
 #include "dwin_driver.h"
-#include "board_link_driver.h"
 #include "mircoelec.h"
 #include "mvc.h"
 #include "mdi/instance.h"
@@ -173,7 +172,8 @@ static void dwin_test(void)
 static void mircoelec_test(void)
 {
     mircoelec_t obj = {0};
-    mircoelec_cfg_t cfg = {{320000U}};
+    input_driver_temperature_t temperatures[INPUT_DRIVER_NTC_COUNT] = {0};
+    mircoelec_cfg_t cfg = {{320000U}, &temperatures[INPUT_DRIVER_NTC_BIO]};
     assert(mircoelec_Run((uintptr_t)&obj) == MODUS_EFAIL);
     assert(mircoelec_Init(0U, (uintptr_t)&cfg) == MODUS_EFAIL);
     test_start_fail = 1;
@@ -197,12 +197,94 @@ static void mvc_test(void)
 {
     mvc_t obj = {0};
     mvc_cfg_t cfg = {{20U}};
+    mircoelec_cfg_t bioCfg = {
+        {200000U}, &obj.tInput.tTemperature[INPUT_DRIVER_NTC_BIO]};
+    extern mircoelec_t tMircoelec;
     assert(mvc_Clock((uintptr_t)&obj) == MODUS_EFAIL);
     assert(mvc_Init(0U, (uintptr_t)&cfg) == MODUS_EFAIL);
     assert(mvc_Init((uintptr_t)&obj, (uintptr_t)&cfg) == MODUS_SUCCESS);
     assert(obj.ptBase->wParent == (uintptr_t)&obj);
+    assert(mircoelec_Init((uintptr_t)&tMircoelec,
+                          (uintptr_t)&bioCfg) == MODUS_SUCCESS);
+    obj.tInput.chPendingKeys = INPUT_DRIVER_KEY_BIO;
     assert(mvc_Run((uintptr_t)&obj) >= 0);
+    assert(obj.eActiveProbe == MVC_PROBE_NONE);
+    obj.tProbeParam.eProbe = MVC_PROBE_BIO;
+    obj.tProbeParam.tBio = (mircoelec_param_t){
+        DAC_DRIVER_WAVE_SINE, 2000U, 50U, 100U,
+    };
+    obj.tProbeParam.tCap.hwEnergyPermille = 250U;
+    obj.tProbeParam.tRes.hwEnergyPermille = 750U;
+    {
+        board_protocol_t client;
+        board_protocol_message_t reply = {0};
+        assert(board_protocol_Init(&client));
+        obj.tInput.chPendingKeys = INPUT_DRIVER_KEY_CAP | INPUT_DRIVER_KEY_BIO;
+        assert(mvc_Run((uintptr_t)&obj) >= 0);
+        assert(obj.eActiveProbe == MVC_PROBE_CAP);
+        assert(board_protocol_IsWaiting(&obj.tBoardProtocol));
+        assert(!mvc_ProbeCommand(&obj, MVC_PROBE_BIO, MVC_PROBE_COMMAND_START));
+        reply.eType = BOARD_PROTOCOL_REPLY;
+        reply.chSequence = obj.tBoardProtocol.tRequest.chSequence;
+        reply.eCommand = BOARD_PROTOCOL_START;
+        reply.eResult = BOARD_PROTOCOL_ACCEPTED;
+        assert(board_protocol_Queue(&client, &reply));
+        assert(board_protocol_Receive(&obj.tBoardProtocol, client.achTx,
+                                     client.chTxLength) == client.chTxLength);
+        assert(mvc_Run((uintptr_t)&obj) >= 0);
+        assert(!board_protocol_IsWaiting(&obj.tBoardProtocol));
+        assert(obj.eActiveProbe == MVC_PROBE_CAP);
+        assert(mvc_ProbeCommand(&obj, MVC_PROBE_CAP, MVC_PROBE_COMMAND_ENERGY));
+        assert(mvc_Run((uintptr_t)&obj) >= 0);
+        assert(obj.tBoardProtocol.tRequest.eCommand == BOARD_PROTOCOL_ENERGY);
+        /* Timeout keeps RF reserved; a subsequent STOP is still allowed. */
+        assert(mvc_Run((uintptr_t)&obj) >= 0);
+        test_now_ms += 1001;
+        assert(mvc_Run((uintptr_t)&obj) >= 0);
+        assert(!board_protocol_IsWaiting(&obj.tBoardProtocol));
+        assert(obj.eActiveProbe == MVC_PROBE_CAP);
+        assert(mvc_ProbeCommand(&obj, MVC_PROBE_CAP, MVC_PROBE_COMMAND_STOP));
+        assert(mvc_Run((uintptr_t)&obj) >= 0);
+        reply.chSequence = obj.tBoardProtocol.tRequest.chSequence;
+        reply.eCommand = BOARD_PROTOCOL_STOP;
+        client.chTxOffset = client.chTxLength;
+        assert(board_protocol_Queue(&client, &reply));
+        assert(board_protocol_Receive(&obj.tBoardProtocol, client.achTx,
+                                     client.chTxLength) == client.chTxLength);
+        assert(mvc_Run((uintptr_t)&obj) >= 0);
+        assert(obj.eActiveProbe == MVC_PROBE_NONE);
+    }
+    obj.tProbeParam.eProbe = MVC_PROBE_BIO;
+    obj.tProbeCommand.eCommand = MVC_PROBE_COMMAND_START;
     assert(mvc_Run((uintptr_t)&obj) >= 0);
+    assert(obj.tProbeParam.tCap.hwEnergyPermille == 250U);
+    assert(obj.tProbeParam.tRes.hwEnergyPermille == 750U);
+    assert(obj.eActiveProbe == MVC_PROBE_BIO);
+    assert(mircoelec_Run((uintptr_t)&tMircoelec) == MODUS_SUCCESS);
+    assert(test_gpio[bio_power] == 1U && test_gpio[fan] == 1U);
+    assert(test_timer_running == 0U);
+    test_now_ms += 500;
+    assert(mircoelec_Run((uintptr_t)&tMircoelec) == MODUS_SUCCESS);
+    assert(test_timer_running != 0U);
+    obj.tProbeCommand.eCommand = MVC_PROBE_COMMAND_STOP;
+    assert(mvc_Run((uintptr_t)&obj) >= 0);
+    assert(mircoelec_Run((uintptr_t)&tMircoelec) == MODUS_SUCCESS);
+    assert(obj.eActiveProbe == MVC_PROBE_NONE && test_timer_running == 0U);
+    assert(test_gpio[bio_power] == 0U && test_gpio[fan] == 0U);
+    obj.tInput.chPendingKeys = INPUT_DRIVER_KEY_BIO;
+    assert(mvc_Run((uintptr_t)&obj) >= 0);
+    assert(obj.eActiveProbe == MVC_PROBE_BIO);
+    assert(mircoelec_Run((uintptr_t)&tMircoelec) == MODUS_SUCCESS);
+    obj.tInput.chPendingKeys = INPUT_DRIVER_KEY_BIO;
+    assert(mvc_Run((uintptr_t)&obj) >= 0);
+    assert(mircoelec_Run((uintptr_t)&tMircoelec) == MODUS_SUCCESS);
+    assert(obj.eActiveProbe == MVC_PROBE_NONE);
+    assert(test_gpio[bio_power] == 0U && test_gpio[fan] == 0U);
+    obj.eActiveProbe = MVC_PROBE_CAP;
+    obj.tInput.chPendingKeys = INPUT_DRIVER_KEY_BIO;
+    assert(mvc_Run((uintptr_t)&obj) >= 0);
+    assert(obj.eActiveProbe == MVC_PROBE_CAP);
+    obj.eActiveProbe = MVC_PROBE_NONE;
     test_stream_fail = 1;
 #if USERCONFIG_MSHELL_ON_SERIAL
     assert(mvc_Run((uintptr_t)&obj) >= 0);
@@ -228,39 +310,6 @@ static void ui_test(void)
     test_stream_fail = 1;
     assert(mvc_ui_SetPage(&ui, 4U) != 0);
     assert(ui.hwCurrentPage == 3U);
-}
-#endif
-#if defined(TEST_LINK)
-static void link_test(void)
-{
-    board_link_driver_t link = {0};
-    const uint8_t data[] = {1U, 2U};
-    assert(board_link_driver_Init(&link) == BOARD_LINK_DRIVER_RESULT_OK);
-    uint32_t count = 0U;
-    uint8_t received[2] = {0};
-    assert(board_link_driver_Write(&link, data, sizeof(data), &count)
-           == BOARD_LINK_DRIVER_RESULT_OK);
-    assert(count == 2U);
-    test_feed(data, sizeof(data));
-    assert(board_link_driver_Read(&link, received, sizeof(received), &count)
-           == BOARD_LINK_DRIVER_RESULT_OK);
-    assert(count == 2U && memcmp(data, received, count) == 0);
-    test_write_limit = 1U;
-    assert(board_link_driver_Write(&link, data, sizeof(data), &count)
-           == BOARD_LINK_DRIVER_RESULT_OK);
-    assert(count == 1U && link.tStats.wTxErrors == 0U);
-    test_stream_overrun = 1;
-    test_feed(data, sizeof(data));
-    assert(board_link_driver_Read(&link, received, sizeof(received), &count)
-           == BOARD_LINK_DRIVER_RESULT_OVERRUN);
-    assert(count == 2U && memcmp(data, received, count) == 0);
-    assert(link.tStats.wRxErrors == 1U);
-    test_stream_fail = 1;
-    assert(board_link_driver_Write(&link, data, sizeof(data), &count)
-           == BOARD_LINK_DRIVER_RESULT_IO);
-    assert(count == 0U);
-    assert(link.tStats.wTxBytes == 3U);
-    assert(link.tStats.wTxErrors == 1U);
 }
 #endif
 #if defined(TEST_ADC_SERVICE)
@@ -318,8 +367,6 @@ int main(void)
     mvc_test();
 #elif defined(TEST_UI)
     ui_test();
-#elif defined(TEST_LINK)
-    link_test();
 #elif defined(TEST_ADC_SERVICE)
     adc_service_test();
 #else

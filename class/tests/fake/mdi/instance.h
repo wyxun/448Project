@@ -14,8 +14,8 @@ extern unsigned test_read_calls;
 extern int test_base_fail;
 extern unsigned test_registrations;
 extern unsigned test_timer_running;
-extern unsigned test_gpio[6];
-enum { dac_oe, dac_ab, dac_parallel, dac_wr, bio_power, fan };
+extern unsigned test_gpio[7];
+enum { dac_oe, dac_ab, dac_parallel, dac_wr, bio_power, fan, heat };
 enum { dwin_stream, board_link_stream };
 mdi_status_t test_read(unsigned resource, uint8_t *data,
                        uint32_t length, uint32_t *count);
@@ -35,16 +35,30 @@ TEST_GPIO(dac_parallel)
 TEST_GPIO(dac_wr)
 TEST_GPIO(bio_power)
 TEST_GPIO(fan)
+TEST_GPIO(heat)
 #define MDI_TIMER_SetFrequency(R, H) ((H) != 0U ? MDI_OK : MDI_IO)
 #define MDI_TIMER_Start(R) test_start()
 #define MDI_TIMER_Stop(R) test_stop()
 typedef struct { uint32_t wCode; } mdi_adc_value_t;
 enum { adc_ntc1, adc_ntc2, adc_ntc3, adc_ntc4, adc_bioadc };
+#if defined(TEST_INPUT)
+extern uint32_t test_input_codes[4];
+extern mdi_status_t test_input_status[4];
+extern uint32_t test_input_keys;
+static inline mdi_status_t test_adc(unsigned channel, mdi_adc_value_t *value)
+{
+    value->wCode = test_input_codes[channel];
+    return test_input_status[channel];
+}
+static inline uint32_t keys_io_Read(void) { return test_input_keys; }
+#else
 static inline mdi_status_t test_adc(unsigned channel, mdi_adc_value_t *value)
 {
     value->wCode = channel;
     return MDI_OK;
 }
+static inline uint32_t keys_io_Read(void) { return 7U; }
+#endif
 #define MDI_ADC_Read(R, P) test_adc((R), (P))
 #if defined(TEST_ADC_SERVICE)
 #include "mdi/core/tick.h"

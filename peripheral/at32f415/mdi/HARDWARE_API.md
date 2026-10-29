@@ -20,14 +20,14 @@
 
 | 职责 | MDI 资源 | 物理资源 | 调用方式 | 备注 |
 |---|---|---|---|---|
-| DAC 采样定时器 | `dac_sample_timer` | TMR1，APB2，更新中断 `TMR1_OVF_TMR10_IRQHandler` | `MDI_TIMER_SetFrequency` / `MDI_TIMER_Start` / `MDI_TIMER_Stop` | 默认由 `mircoelec` 配置为 200 kHz；中断经 `mircoelec_IsrStep()` 传入对象后进入 `dac_driver_IsrStep(ptDac)` |
+| DAC 采样定时器 | `dac_sample_timer` | TMR1，APB2，更新中断 `TMR1_OVF_TMR10_IRQHandler` | `MDI_TIMER_SetFrequency` / `MDI_TIMER_Start` / `MDI_TIMER_Stop` | 默认由 `mircoelec` 配置为 200 kHz；中断直接调用 `dac_driver_IsrStep(&tMircoelec.tDac)` |
 | raw tick | `raw_tick` | `perf_counter::get_system_ticks()` | `MDI_TICK_Now(raw_tick)` | 当前 Master 主频按 backend 配置为 144 MHz |
 | DAC 并行数据 | `dac_parallel` | PA0、PA1、PA2、PA3、PA4、PA5、PA6、PA7 | `MDI_IO_Write(dac_parallel, value)` | 逻辑 bit0~bit7 对应 PA0~PA7，经硬件双重交叉负负得正最终对应 TLC7528 DB0~DB7 |
 | DAC 通道选择 | `dac_ab` | PB2，TLC7528 DAC/AB | `MDI_IO_Write(dac_ab, value)` | 由 DAC driver 内部选择载波/包络通道 |
 | DAC 写脉冲 | `dac_wr` | PB1，TLC7528 WR# | `MDI_IO_Write(dac_wr, value)` | DAC driver 高速路径直接翻转 |
 | DAC 输出使能 | `dac_oe` | PB0，TXB0108 OE | `MDI_IO_Write(dac_oe, value)` | 低有效/高阻控制按板级电路约定 |
 
-上层波形接口由 `dac_driver` 提供：`dac_driver_SetFrequencies()` 原子配置两路频率，`dac_driver_Start()`、`dac_driver_Stop()` 控制输出。carrier 对应 DACB，envelope 对应 DACA。采样频率由初始化配置设置，Master 默认 200 kHz；两路各自最高 20 kHz，且必须低于采样频率的一半。TMR1 中断调用 `mircoelec_IsrStep()` 推进波形，应用不直接操作 DAC 通道时序。
+上层波形接口由 `dac_driver` 提供：`dac_driver_SetFrequencies()` 原子配置两路频率，`dac_driver_Start()`、`dac_driver_Stop()` 控制输出。carrier 对应 DACB，envelope 对应 DACA。采样频率由初始化配置设置，Master 默认 200 kHz；两路各自最高 20 kHz，且必须低于采样频率的一半。TMR1 中断直接调用 `dac_driver_IsrStep(&tMircoelec.tDac)` 推进波形。
 
 ## GPIO 输出与输入
 
@@ -94,7 +94,7 @@ mdi_status_t status = MDI_STREAM_Write(
 - `peripheral_Init()` 在 [port_sys.c](../port_sys.c) 中完成时钟、GPIO、USART、ADC/DMA 和 TMR1 的芯片初始化。
 - `state.c` 只提供 ADC DMA、均值和串口流所需的板级共享存储；`service.c` 提供强定义的
   `mdi_Init()` / `mdi_Service()` / `mdi_Clock()` 回调，共同组成运行时 MDI 状态，不再生成旧式 `HW` 对象。
-- `TMR1_OVF_TMR10_IRQHandler` 清除更新标志后调用 `mircoelec_IsrStep()`，由 Class 明确传入 DAC Driver 对象。
+- `TMR1_OVF_TMR10_IRQHandler` 清除更新标志后调用 `dac_driver_IsrStep(&tMircoelec.tDac)`。
 - `DMA1_Channel1_IRQHandler` 只发布 ADC DMA 所有权；均值计算在板级 `mdi_Service()` 完成。
 - `modus_Run()` 先调用板级 `mdi_Service()`，再运行 MODUS 对象；`modus_Clock()` 先调用板级 `mdi_Clock()`，再运行对象时钟回调。
 - `USART1_IRQHandler` 和 `USART3_IRQHandler` 只进入对应 stream 的中断宏。

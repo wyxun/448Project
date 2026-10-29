@@ -44,7 +44,50 @@ static const uint8_t s_chSineTable[DAC_DRIVER_SINE_TABLE_SIZE] = {
     47U, 49U, 52U, 54U, 57U, 59U, 62U, 65U, 67U, 70U, 73U, 76U,
     79U, 82U, 85U, 88U, 90U, 93U, 97U, 100U, 103U, 106U, 109U, 112U,
     115U, 118U, 121U, 124U,
+};
 
+static const uint8_t s_chInvertedSineTable[DAC_DRIVER_SINE_TABLE_SIZE] = {
+    127U, 124U, 121U, 118U, 115U, 112U, 109U, 106U, 103U, 100U,  97U,  93U,
+     90U,  88U,  85U,  82U,  79U,  76U,  73U,  70U,  67U,  65U,  62U,  59U,
+     57U,  54U,  52U,  49U,  47U,  44U,  42U,  40U,  37U,  35U,  33U,  31U,
+     29U,  27U,  25U,  23U,  21U,  20U,  18U,  17U,  15U,  14U,  12U,  11U,
+     10U,   9U,   7U,   6U,   5U,   5U,   4U,   3U,   2U,   2U,   1U,   1U,
+      1U,   0U,   0U,   0U,   0U,   0U,   0U,   0U,   1U,   1U,   1U,   2U,
+      2U,   3U,   4U,   5U,   5U,   6U,   7U,   9U,  10U,  11U,  12U,  14U,
+     15U,  17U,  18U,  20U,  21U,  23U,  25U,  27U,  29U,  31U,  33U,  35U,
+     37U,  40U,  42U,  44U,  47U,  49U,  52U,  54U,  57U,  59U,  62U,  65U,
+     67U,  70U,  73U,  76U,  79U,  82U,  85U,  88U,  90U,  93U,  97U, 100U,
+    103U, 106U, 109U, 112U, 115U, 118U, 121U, 124U, 127U, 131U, 134U, 137U,
+    140U, 143U, 146U, 149U, 152U, 155U, 158U, 162U, 165U, 167U, 170U, 173U,
+    176U, 179U, 182U, 185U, 188U, 190U, 193U, 196U, 198U, 201U, 203U, 206U,
+    208U, 211U, 213U, 215U, 218U, 220U, 222U, 224U, 226U, 228U, 230U, 232U,
+    234U, 235U, 237U, 238U, 240U, 241U, 243U, 244U, 245U, 246U, 248U, 249U,
+    250U, 250U, 251U, 252U, 253U, 253U, 254U, 254U, 254U, 255U, 255U, 255U,
+    255U, 255U, 255U, 255U, 254U, 254U, 254U, 253U, 253U, 252U, 251U, 250U,
+    250U, 249U, 248U, 246U, 245U, 244U, 243U, 241U, 240U, 238U, 237U, 235U,
+    234U, 232U, 230U, 228U, 226U, 224U, 222U, 220U, 218U, 215U, 213U, 211U,
+    208U, 206U, 203U, 201U, 198U, 196U, 193U, 190U, 188U, 185U, 182U, 179U,
+    176U, 173U, 170U, 167U, 165U, 162U, 158U, 155U, 152U, 149U, 146U, 143U,
+    140U, 137U, 134U, 131U,
+};
+
+static const uint8_t s_chDigitalSquareTable[DAC_DRIVER_SINE_TABLE_SIZE] = {
+    255U, 255U, 255U, 255U, 255U, 255U, 255U, 255U, 255U, 255U, 255U, 255U, 255U, 255U, 255U, 255U,
+    255U, 255U, 255U, 255U, 255U, 255U, 255U, 255U, 255U, 255U, 255U, 255U, 255U, 255U, 255U, 255U,
+    255U, 255U, 255U, 255U, 255U, 255U, 255U, 255U, 255U, 255U, 255U, 255U, 255U, 255U, 255U, 255U,
+    255U, 255U, 255U, 255U, 255U, 255U, 255U, 255U, 255U, 255U, 255U, 255U, 255U, 255U, 255U, 255U,
+    255U, 255U, 255U, 255U, 255U, 255U, 255U, 255U, 255U, 255U, 255U, 255U, 255U, 255U, 255U, 255U,
+    255U, 255U, 255U, 255U, 255U, 255U, 255U, 255U, 255U, 255U, 255U, 255U, 255U, 255U, 255U, 255U,
+    255U, 255U, 255U, 255U, 255U, 255U, 255U, 255U, 255U, 255U, 255U, 255U, 255U, 255U, 255U, 255U,
+    255U, 255U, 255U, 255U, 255U, 255U, 255U, 255U, 255U, 255U, 255U, 255U, 255U, 255U, 255U, 255U,
+      0U,   0U,   0U,   0U,   0U,   0U,   0U,   0U,   0U,   0U,   0U,   0U,   0U,   0U,   0U,   0U,
+      0U,   0U,   0U,   0U,   0U,   0U,   0U,   0U,   0U,   0U,   0U,   0U,   0U,   0U,   0U,   0U,
+      0U,   0U,   0U,   0U,   0U,   0U,   0U,   0U,   0U,   0U,   0U,   0U,   0U,   0U,   0U,   0U,
+      0U,   0U,   0U,   0U,   0U,   0U,   0U,   0U,   0U,   0U,   0U,   0U,   0U,   0U,   0U,   0U,
+      0U,   0U,   0U,   0U,   0U,   0U,   0U,   0U,   0U,   0U,   0U,   0U,   0U,   0U,   0U,   0U,
+      0U,   0U,   0U,   0U,   0U,   0U,   0U,   0U,   0U,   0U,   0U,   0U,   0U,   0U,   0U,   0U,
+      0U,   0U,   0U,   0U,   0U,   0U,   0U,   0U,   0U,   0U,   0U,   0U,   0U,   0U,   0U,   0U,
+      0U,   0U,   0U,   0U,   0U,   0U,   0U,   0U,   0U,   0U,   0U,   0U,   0U,   0U,   0U,   0U,
 };
 
 /**
@@ -173,35 +216,32 @@ DAC_DRIVER_ALWAYS_INLINE void _dac_driver_FastWriteEnvelope(
  */
 void dac_driver_IsrStep(dac_driver_t *ptThis)
 {
+    uint32_t wCarrierPhase = 0U;
+    uint32_t wEnvelopePhase = 0U;
     uint8_t chCarrierValue = 0U;
     uint8_t chEnvelopeValue = 0U;
-    uint8_t chCarrierTable = 0U;
 
-    if ((ptThis == NULL) || (ptThis->eState != DAC_DRIVER_STATE_RUNNING)) {
+    if (ptThis->eState != DAC_DRIVER_STATE_RUNNING) {
         return;
     }
 
-    ptThis->tCarrier.wPhase += ptThis->tCarrier.wPhaseStepPerSample;
-    ptThis->tEnvelope.wPhase += ptThis->tEnvelope.wPhaseStepPerSample;
-    chCarrierTable = ptThis->chActiveCarrierTable;
-    chCarrierValue = ptThis->aachCarrierTable[chCarrierTable][
-        (uint8_t)(ptThis->tCarrier.wPhase >> 24)];
-    if (ptThis->eEnvelopeWaveType == DAC_DRIVER_WAVE_DIGITAL) {
-        chEnvelopeValue = ((ptThis->tEnvelope.wPhase >> 31) == 0U) ? 255U : 0U;
-    } else {
-        chEnvelopeValue = (uint8_t)(255U - s_chSineTable[
-            (uint8_t)(ptThis->tEnvelope.wPhase >> 24)]);
-    }
+    wCarrierPhase = ptThis->tCarrier.wPhase + ptThis->tCarrier.wPhaseStepPerSample;
+    wEnvelopePhase = ptThis->tEnvelope.wPhase + ptThis->tEnvelope.wPhaseStepPerSample;
+    ptThis->tCarrier.wPhase = wCarrierPhase;
+    ptThis->tEnvelope.wPhase = wEnvelopePhase;
 
-    if (!ptThis->tCarrier.bValueValid
-        || (ptThis->tCarrier.chLastValue != chCarrierValue)) {
+    chCarrierValue = ptThis->pchActiveCarrierTable[(uint8_t)(wCarrierPhase >> 24)];
+    chEnvelopeValue = ptThis->pchActiveEnvelopeTable[(uint8_t)(wEnvelopePhase >> 24)];
+
+    if ((uint16_t)chCarrierValue != ptThis->tCarrier.hwLastValue) {
         _dac_driver_FastWriteCarrier(chCarrierValue);
+        ptThis->tCarrier.hwLastValue = (uint16_t)chCarrierValue;
         ptThis->tCarrier.chLastValue = chCarrierValue;
         ptThis->tCarrier.bValueValid = true;
     }
-    if (!ptThis->tEnvelope.bValueValid
-        || (ptThis->tEnvelope.chLastValue != chEnvelopeValue)) {
+    if ((uint16_t)chEnvelopeValue != ptThis->tEnvelope.hwLastValue) {
         _dac_driver_FastWriteEnvelope(chEnvelopeValue);
+        ptThis->tEnvelope.hwLastValue = (uint16_t)chEnvelopeValue;
         ptThis->tEnvelope.chLastValue = chEnvelopeValue;
         ptThis->tEnvelope.bValueValid = true;
     }
@@ -227,6 +267,8 @@ dac_driver_result_t dac_driver_Init(
     (void)memset(ptThis, 0, sizeof(*ptThis));
     ptThis->eState = DAC_DRIVER_STATE_UNINITIALIZED;
     ptThis->eEnvelopeWaveType = DAC_DRIVER_WAVE_SINE;
+    ptThis->pchActiveCarrierTable = ptThis->aachCarrierTable[0];
+    ptThis->pchActiveEnvelopeTable = s_chInvertedSineTable;
     _dac_driver_BuildCarrierTable(ptThis, 0U,
         DAC_DRIVER_AMPLITUDE_FULL_SCALE_PERCENT);
     _dac_driver_BuildCarrierTable(ptThis, 1U,
@@ -249,8 +291,10 @@ dac_driver_result_t dac_driver_Init(
     _dac_driver_FastWriteCarrier(128U);
     _dac_driver_FastWriteEnvelope(128U);
     ptThis->tCarrier.chLastValue = 128U;
+    ptThis->tCarrier.hwLastValue = 128U;
     ptThis->tCarrier.bValueValid = true;
     ptThis->tEnvelope.chLastValue = 128U;
+    ptThis->tEnvelope.hwLastValue = 128U;
     ptThis->tEnvelope.bValueValid = true;
     MDI_IO_Write(dac_oe, 0U);
 
@@ -292,13 +336,18 @@ dac_driver_result_t dac_driver_SetFrequencies(
         return eResult;
     }
 
-    safe_atom_code() {
+    {
+        perfc_global_interrupt_status_t tIrqStatus =
+            perfc_port_disable_global_interrupt();
         ptThis->tCarrier.wPhaseStepPerSample = wCarrierPhaseStep;
         ptThis->tCarrier.wPhase = 0U;
+        ptThis->tCarrier.hwLastValue = 0xFFFFU;
         ptThis->tCarrier.bValueValid = false;
         ptThis->tEnvelope.wPhaseStepPerSample = wEnvelopePhaseStep;
         ptThis->tEnvelope.wPhase = 0U;
+        ptThis->tEnvelope.hwLastValue = 0xFFFFU;
         ptThis->tEnvelope.bValueValid = false;
+        perfc_port_resume_global_interrupt(tIrqStatus);
     }
     return DAC_DRIVER_RESULT_OK;
 }
@@ -322,9 +371,14 @@ dac_driver_result_t dac_driver_SetCarrierAmplitude(
     chInactiveTable = (uint8_t)(ptThis->chActiveCarrierTable ^ 1U);
     _dac_driver_BuildCarrierTable(ptThis, chInactiveTable,
                                    chAmplitudePercent);
-    safe_atom_code() {
+    {
+        perfc_global_interrupt_status_t tIrqStatus =
+            perfc_port_disable_global_interrupt();
         ptThis->chActiveCarrierTable = chInactiveTable;
+        ptThis->pchActiveCarrierTable = ptThis->aachCarrierTable[chInactiveTable];
+        ptThis->tCarrier.hwLastValue = 0xFFFFU;
         ptThis->tCarrier.bValueValid = false;
+        perfc_port_resume_global_interrupt(tIrqStatus);
     }
     return DAC_DRIVER_RESULT_OK;
 }
@@ -350,9 +404,15 @@ dac_driver_result_t dac_driver_SetWaveType(
         return DAC_DRIVER_RESULT_INVALID_ARGUMENT;
     }
 
-    safe_atom_code() {
+    {
+        perfc_global_interrupt_status_t tIrqStatus =
+            perfc_port_disable_global_interrupt();
         ptThis->eEnvelopeWaveType = eWaveType;
+        ptThis->pchActiveEnvelopeTable = (eWaveType == DAC_DRIVER_WAVE_DIGITAL)
+            ? s_chDigitalSquareTable : s_chInvertedSineTable;
+        ptThis->tEnvelope.hwLastValue = 0xFFFFU;
         ptThis->tEnvelope.bValueValid = false;
+        perfc_port_resume_global_interrupt(tIrqStatus);
     }
     return DAC_DRIVER_RESULT_OK;
 }
@@ -400,7 +460,9 @@ dac_driver_result_t dac_driver_Stop(dac_driver_t *ptThis)
         return DAC_DRIVER_RESULT_NULL;
     }
     /* Safe output is required even if the timer stop fails. */
-    safe_atom_code() {
+    {
+        perfc_global_interrupt_status_t tIrqStatus =
+            perfc_port_disable_global_interrupt();
         eStatus = MDI_TIMER_Stop(dac_sample_timer);
         /* Ensure translator is active to write zero-offset mid-scale 128,
          * preventing DC bias leakage into op-amp and power amp stages. */
@@ -408,8 +470,10 @@ dac_driver_result_t dac_driver_Stop(dac_driver_t *ptThis)
         _dac_driver_FastWriteCarrier(128U);
         _dac_driver_FastWriteEnvelope(128U);
         ptThis->tCarrier.chLastValue = 128U;
+        ptThis->tCarrier.hwLastValue = 128U;
         ptThis->tCarrier.bValueValid = true;
         ptThis->tEnvelope.chLastValue = 128U;
+        ptThis->tEnvelope.hwLastValue = 128U;
         ptThis->tEnvelope.bValueValid = true;
         MDI_IO_Write(dac_oe, 0U);
         if (eStatus != MDI_OK) {
@@ -419,6 +483,7 @@ dac_driver_result_t dac_driver_Stop(dac_driver_t *ptThis)
         } else {
             /* Stop preserves a latched fault. */
         }
+        perfc_port_resume_global_interrupt(tIrqStatus);
     }
     return eStatus == MDI_OK ? DAC_DRIVER_RESULT_OK : DAC_DRIVER_RESULT_IO;
 }

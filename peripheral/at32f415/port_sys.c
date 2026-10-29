@@ -123,6 +123,7 @@ static void board_gpio_init(void)
     crm_periph_clock_enable(CRM_GPIOB_PERIPH_CLOCK, TRUE);
     crm_periph_clock_enable(CRM_GPIOC_PERIPH_CLOCK, TRUE);
     crm_periph_clock_enable(CRM_GPIOD_PERIPH_CLOCK, TRUE);
+    crm_periph_clock_enable(CRM_IOMUX_PERIPH_CLOCK, TRUE);
 
     gpio_init_output(GPIOA, GPIO_PINS_0 | GPIO_PINS_1 | GPIO_PINS_2 |
                      GPIO_PINS_3 | GPIO_PINS_4 | GPIO_PINS_5 |

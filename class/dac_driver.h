@@ -41,6 +41,7 @@ typedef struct {
 typedef struct {
     uint32_t wPhase;
     uint32_t wPhaseStepPerSample;
+    uint16_t hwLastValue;
     uint8_t chLastValue;
     bool bValueValid;
 } dac_driver_wave_t;
@@ -53,6 +54,8 @@ typedef struct {
     dac_driver_wave_type_t eEnvelopeWaveType;
     uint8_t aachCarrierTable[2][DAC_DRIVER_SINE_TABLE_SIZE];
     volatile uint8_t chActiveCarrierTable;
+    const uint8_t *pchActiveCarrierTable;
+    const uint8_t *pchActiveEnvelopeTable;
 } dac_driver_t;
 
 dac_driver_result_t dac_driver_Init(

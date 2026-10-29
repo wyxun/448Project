@@ -13,6 +13,7 @@
 #include "mircoelec.h"
 
 extern void modus_Clock(void);
+extern mircoelec_t tMircoelec;
 
 void NMI_Handler(void) { while (1) { } }
 #ifndef MDEBUG_CM_FAULT_HANDLERS_ACTIVE
@@ -47,7 +48,7 @@ void TMR1_OVF_TMR10_IRQHandler(void)
 {
     if (tmr_interrupt_flag_get(TMR1, TMR_OVF_FLAG) != RESET) {
         tmr_flag_clear(TMR1, TMR_OVF_FLAG);
-        mircoelec_IsrStep();
+        dac_driver_IsrStep(&tMircoelec.tDac);
     }
 }
 void TMR1_CH_IRQHandler(void) { }

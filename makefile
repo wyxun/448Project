@@ -19,9 +19,10 @@ endif
 
 TARGET_CHIP ?= at32f415
 CLASS_SOURCES = class/template_class.c template_driver.c \
-                class/mircoelec.c class/mvc.c class/dwin_driver.c \
-                class/mvc_ui.c class/board_link_driver.c class/dac_driver.c \
-                class/mircoelec_waveform.c
+                class/mircoelec.c class/mvc.c class/mvc_debug.c \
+                class/input_driver.c class/heater_control.c class/dwin_driver.c \
+                class/mvc_ui.c class/dac_driver.c \
+                class/board_protocol.c
 
 include target/$(TARGET_CHIP)/target.mk
 

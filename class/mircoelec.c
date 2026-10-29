@@ -8,25 +8,24 @@
 #include "mircoelec.h"
 
 #include "mdi/instance.h"
-#include "mdebug/mshell.h"
-#include "mdebug/util_debug.h"
+#include "perf_counter.h"
+#include "perfc_task_pt.h"
 
 #include <stddef.h>
 #include <string.h>
 
-#define MIRCROELEC_DAC_SAMPLE_FREQUENCY_HZ 200000U
-
 static modus_base_t s_tMircoelecBase;
+static uint8_t s_achMircoelecMessages[128];
 static modus_base_cfg_t s_tMircoelecBaseCfg = {
     .wId = MIRCROELEC,
+    .pchRingBuffer = s_achMircoelecMessages,
+    .hwRingSize = sizeof(s_achMircoelecMessages),
     .wParent = 0U,
     .FcnInterface = {
         .Clock = mircoelec_Clock,
         .Run = mircoelec_Run,
     },
 };
-
-extern mircoelec_t tMircoelec;
 
 /**
  * @brief Initialize the DAC disabled and register after dependencies succeed.
@@ -47,9 +46,16 @@ int mircoelec_Init(uintptr_t wObjectAddr, uintptr_t wObjectCfgAddr)
     }
 
     MDI_IO_Write(fan, 0U);
+    MDI_IO_Write(bio_power, 0U);
     (void)memset(ptThis, 0, sizeof(*ptThis));
     ptThis->ptBase = &s_tMircoelecBase;
     ptThis->eState = MIRCROELEC_STATE_UNINITIALIZED;
+
+    if (heater_control_Init(&ptThis->tHeater, ptCfg->ptTemperature)
+        != HEATER_CONTROL_RESULT_OK) {
+        ptThis->eState = MIRCROELEC_STATE_ERROR;
+        return MODUS_EFAIL;
+    }
 
     ptThis->eDacError = dac_driver_Init(&ptThis->tDac, &ptCfg->tDacCfg);
     if (ptThis->eDacError != DAC_DRIVER_RESULT_OK) {
@@ -67,10 +73,6 @@ int mircoelec_Init(uintptr_t wObjectAddr, uintptr_t wObjectCfgAddr)
         return nResult;
     }
     ptThis->eState = MIRCROELEC_STATE_READY;
-#if MWAVEFORM_ENABLE
-    mircoelec_waveform_Init(&ptThis->tWaveform,
-                            ptCfg->tDacCfg.wSampleFrequencyHz);
-#endif
     return MODUS_SUCCESS;
 }
 
@@ -87,9 +89,6 @@ static dac_driver_result_t _mircoelec_LatchDacError(
     MDI_IO_Write(fan, 0U);
     ptThis->eDacError = eError;
     ptThis->eState = MIRCROELEC_STATE_ERROR;
-#if MWAVEFORM_ENABLE
-    mircoelec_waveform_Stop(&ptThis->tWaveform);
-#endif
     return eError;
 }
 
@@ -133,9 +132,6 @@ dac_driver_result_t mircoelec_StartWaveform(
     }
     MDI_IO_Write(fan, 1U);
     ptThis->eDacError = DAC_DRIVER_RESULT_OK;
-#if MWAVEFORM_ENABLE
-    mircoelec_waveform_Start(&ptThis->tWaveform, wAHz, wBHz);
-#endif
     return DAC_DRIVER_RESULT_OK;
 }
 
@@ -155,9 +151,6 @@ dac_driver_result_t mircoelec_StopWaveform(mircoelec_t *ptThis)
         return DAC_DRIVER_RESULT_NOT_READY;
     }
 
-#if MWAVEFORM_ENABLE
-    mircoelec_waveform_Stop(&ptThis->tWaveform);
-#endif
     eResult = dac_driver_Stop(&ptThis->tDac);
     MDI_IO_Write(fan, 0U);
     if (eResult != DAC_DRIVER_RESULT_OK) {
@@ -166,17 +159,120 @@ dac_driver_result_t mircoelec_StopWaveform(mircoelec_t *ptThis)
     return DAC_DRIVER_RESULT_OK;
 }
 
-/**
- * @brief Advance the DAC owned by the declared single master instance.
- * @return None.
- */
-void mircoelec_IsrStep(void)
+dac_driver_result_t mircoelec_StartConfiguredWaveform(
+    mircoelec_t *ptThis, dac_driver_wave_type_t eWaveType,
+    uint32_t wAHz, uint32_t wBHz, uint8_t chAmplitudePercent)
 {
-    dac_driver_IsrStep(&tMircoelec.tDac);
-#if MWAVEFORM_ENABLE
-    mircoelec_waveform_IsrStep(&tMircoelec.tWaveform, &tMircoelec.tDac);
-#endif
+    dac_driver_result_t eResult = dac_driver_SetCarrierAmplitude(
+        &ptThis->tDac, chAmplitudePercent);
+    if (eResult != DAC_DRIVER_RESULT_OK) {
+        return eResult;
+    }
+    return mircoelec_StartWaveform(ptThis, eWaveType, wAHz, wBHz);
 }
+
+/** Read one complete BIO command into the persistent class state. */
+static bool _mircoelec_ReceiveBioCommand(mircoelec_t *ptThis)
+{
+    int nLength = mbase_MessagePendFromRing(ptThis->ptBase,
+        (uint8_t *)&ptThis->tBioCommand,
+        (uint16_t)sizeof(ptThis->tBioCommand));
+    return nLength == (int)sizeof(ptThis->tBioCommand);
+}
+
+/**
+ * @brief Advance the BIO control protothread.
+ * @param ptThis Initialized mircoelec instance.
+ * @return PT progress or error.
+ */
+#if defined(__GNUC__) && !defined(__clang__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wimplicit-fallthrough"
+#endif
+static fsm_rt_t _mircoelec_RunBio(mircoelec_t *ptThis)
+{
+    dac_driver_result_t eResult = DAC_DRIVER_RESULT_OK;
+
+    PERFC_PT_BEGIN(ptThis->chBioPt)
+    while (1) {
+        PERFC_PT_WAIT_UNTIL(_mircoelec_ReceiveBioCommand(ptThis))
+
+        if (ptThis->tBioCommand.eCommand == MIRCROELEC_COMMAND_STOP) {
+            MDI_IO_Write(bio_power, 0U);
+            MDI_IO_Write(fan, 0U);
+            ptThis->eBioState = MIRCROELEC_BIO_IDLE;
+            continue;
+        }
+        if (ptThis->tBioCommand.eCommand != MIRCROELEC_COMMAND_START) {
+            continue;
+        }
+        if ((ptThis->eState != MIRCROELEC_STATE_READY)
+            || (ptThis->tDac.eState != DAC_DRIVER_STATE_IDLE)) {
+            ptThis->eBioState = MIRCROELEC_BIO_ERROR;
+            continue;
+        }
+
+        ptThis->ptBioWave = ptThis->tBioCommand.ptWave;
+        if (ptThis->ptBioWave == NULL) {
+            ptThis->eBioState = MIRCROELEC_BIO_ERROR;
+            continue;
+        }
+        MDI_IO_Write(bio_power, 1U);
+        MDI_IO_Write(fan, 1U);
+        ptThis->lBioDeadline = 0;
+        ptThis->eBioState = MIRCROELEC_BIO_WAITING;
+
+        while (ptThis->eBioState == MIRCROELEC_BIO_WAITING) {
+            if (_mircoelec_ReceiveBioCommand(ptThis)) {
+                if (ptThis->tBioCommand.eCommand == MIRCROELEC_COMMAND_STOP) {
+                    MDI_IO_Write(bio_power, 0U);
+                    MDI_IO_Write(fan, 0U);
+                    ptThis->eBioState = MIRCROELEC_BIO_IDLE;
+                }
+            }
+            if ((ptThis->eBioState == MIRCROELEC_BIO_WAITING)
+                && perfc_is_time_out_ms(500U, &ptThis->lBioDeadline, false)) {
+                eResult = mircoelec_StartConfiguredWaveform(ptThis,
+                    ptThis->ptBioWave->eWaveType,
+                    ptThis->ptBioWave->wAHz,
+                    ptThis->ptBioWave->wBHz,
+                    ptThis->ptBioWave->chAmplitudePercent);
+                if (eResult == DAC_DRIVER_RESULT_OK) {
+                    ptThis->eBioState = MIRCROELEC_BIO_RUNNING;
+                } else {
+                    (void)mircoelec_StopWaveform(ptThis);
+                    MDI_IO_Write(bio_power, 0U);
+                    MDI_IO_Write(fan, 0U);
+                    ptThis->eBioState = MIRCROELEC_BIO_ERROR;
+                }
+                if (eResult != DAC_DRIVER_RESULT_OK) {
+                    PERFC_PT_YIELD(fsm_rt_err)
+                }
+            }
+            PERFC_PT_YIELD(fsm_rt_on_going)
+        }
+
+        while ((ptThis->eBioState == MIRCROELEC_BIO_RUNNING)
+               || (ptThis->eBioState == MIRCROELEC_BIO_ERROR)) {
+            PERFC_PT_WAIT_UNTIL(_mircoelec_ReceiveBioCommand(ptThis))
+            if (ptThis->tBioCommand.eCommand == MIRCROELEC_COMMAND_STOP) {
+                eResult = DAC_DRIVER_RESULT_OK;
+                if (ptThis->eBioState == MIRCROELEC_BIO_RUNNING) {
+                    eResult = mircoelec_StopWaveform(ptThis);
+                }
+                MDI_IO_Write(bio_power, 0U);
+                MDI_IO_Write(fan, 0U);
+                ptThis->eBioState = (eResult == DAC_DRIVER_RESULT_OK)
+                    ? MIRCROELEC_BIO_IDLE : MIRCROELEC_BIO_ERROR;
+            }
+        }
+    }
+    PERFC_PT_END()
+    return fsm_rt_cpl;
+}
+#if defined(__GNUC__) && !defined(__clang__)
+#pragma GCC diagnostic pop
+#endif
 
 /**
  * @brief Validate the Class required foreground callback.
@@ -186,12 +282,16 @@ void mircoelec_IsrStep(void)
 int mircoelec_Run(uintptr_t wObjectAddr)
 {
     mircoelec_t *ptThis = (mircoelec_t *)wObjectAddr;
+    fsm_rt_t eBioResult = fsm_rt_err;
 
-    if ((ptThis == NULL) || (ptThis->eState != MIRCROELEC_STATE_READY)) {
+    if ((ptThis == NULL) || (ptThis->eState == MIRCROELEC_STATE_UNINITIALIZED)) {
         return MODUS_EFAIL;
     }
-    /* MODUS 当前要求每个对象提供 Run；DAC 波形由硬件 TMR1 ISR 推进。 */
-    return MODUS_SUCCESS;
+    if (ptThis->eState == MIRCROELEC_STATE_READY) {
+        heater_control_Run(&ptThis->tHeater);
+    }
+    eBioResult = _mircoelec_RunBio(ptThis);
+    return (eBioResult == fsm_rt_err) ? MODUS_EFAIL : MODUS_SUCCESS;
 }
 
 /**
@@ -207,92 +307,6 @@ int mircoelec_Clock(uintptr_t wObjectAddr)
         return MODUS_EFAIL;
     }
 
+    heater_control_Clock(&ptThis->tHeater);
     return MODUS_SUCCESS;
 }
-
-#if MSHELL_ENABLE
-/**
- * @brief Parse and execute one DAC MShell command.
- * @param pchArgs Text after the dac command name.
- * @return None.
- */
-static void _mircoelec_DacCommand(const char *pchArgs)
-{
-    const char *pchText = pchArgs;
-    uint32_t wAHz = 0U;
-    uint32_t wBHz = 0U;
-    uint32_t wBAmplitudePercent = DAC_DRIVER_AMPLITUDE_FULL_SCALE_PERCENT;
-    dac_driver_result_t eResult = DAC_DRIVER_RESULT_OK;
-
-    if (mshell_ConsumeWord(&pchText, "start")) {
-        dac_driver_wave_type_t eWaveType = DAC_DRIVER_WAVE_SINE;
-        if (mshell_ConsumeWord(&pchText, "dig")) {
-            eWaveType = DAC_DRIVER_WAVE_DIGITAL;
-        } else if (mshell_ConsumeWord(&pchText, "sin")) {
-            eWaveType = DAC_DRIVER_WAVE_SINE;
-        } else {
-            eWaveType = DAC_DRIVER_WAVE_SINE;
-        }
-
-        if ((mshell_Parse(&pchText, &wAHz) != MSHELL_PARSE_OK)
-            || (mshell_Parse(&pchText, &wBHz) != MSHELL_PARSE_OK)
-            || (wAHz > DAC_DRIVER_MAX_FREQUENCY_HZ)
-            || (wBHz > DAC_DRIVER_MAX_FREQUENCY_HZ)) {
-            MLOGF(W,
-                "Usage: dac start [dig|sin] <A_Hz> <B_Hz> [B_percent]\r\n");
-            return;
-        }
-        if (!mshell_AtEnd(pchText)
-            && (mshell_Parse(&pchText, &wBAmplitudePercent)
-                != MSHELL_PARSE_OK)) {
-            MLOGF(W,
-                "Usage: dac start [dig|sin] <A_Hz> <B_Hz> [B_percent]\r\n");
-            return;
-        }
-        if (!mshell_AtEnd(pchText)
-            || (wBAmplitudePercent
-                > DAC_DRIVER_AMPLITUDE_FULL_SCALE_PERCENT)) {
-            MLOGF(W,
-                "Usage: dac start [dig|sin] <A_Hz> <B_Hz> [B_percent]\r\n");
-            return;
-        }
-        eResult = dac_driver_SetCarrierAmplitude(&tMircoelec.tDac,
-            (uint8_t)wBAmplitudePercent);
-        if (eResult != DAC_DRIVER_RESULT_OK) {
-            MLOGF(W, "DAC start failed: %d\r\n", (int)eResult);
-            return;
-        }
-        eResult = mircoelec_StartWaveform(&tMircoelec, eWaveType, wAHz, wBHz);
-        if (eResult == DAC_DRIVER_RESULT_OK) {
-            MLOGF(I, "DAC started: mode=%s A=%lu Hz B=%lu Hz B_amp=%lu%%\r\n",
-                  (eWaveType == DAC_DRIVER_WAVE_DIGITAL) ? "dig" : "sin",
-                  (unsigned long)wAHz, (unsigned long)wBHz,
-                  (unsigned long)wBAmplitudePercent);
-        } else {
-            MLOGF(W, "DAC start failed: %d\r\n", (int)eResult);
-        }
-        return;
-    }
-
-    if (mshell_ConsumeWord(&pchText, "stop")
-        && mshell_AtEnd(pchText)) {
-        eResult = mircoelec_StopWaveform(&tMircoelec);
-        if (eResult == DAC_DRIVER_RESULT_OK) {
-            MLOGF(I, "DAC output stopped\r\n");
-        } else {
-            MLOGF(W, "DAC stop failed: %d\r\n", (int)eResult);
-        }
-        return;
-    }
-    MLOGF(W, "Usage: dac start [dig|sin] <A_Hz> <B_Hz> | dac stop\r\n");
-}
-
-MODUS_SHELL_CMD(dac, _mircoelec_DacCommand,
-                "DAC waveform: start [dig|sin] <A_Hz> <B_Hz> [B_percent] | stop");
-#endif
-
-MODUS_DECLARE_OBJECT(mircoelec, Mircoelec,
-    .tDacCfg = {
-        .wSampleFrequencyHz = MIRCROELEC_DAC_SAMPLE_FREQUENCY_HZ,
-    }
-)
