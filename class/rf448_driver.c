@@ -16,6 +16,9 @@
 #define RF448_CAP_RELAYS 0x10U
 #define RF448_RES_RELAYS 0x38U
 #define RF448_NTC_ADC_MAX_CODE 4095U
+#define RF448_BUS_ADC_REFERENCE_MV 3300U
+#define RF448_BUS_ADC_FULL_SCALE 4095U
+#define RF448_BUS_DIVIDER_RATIO 19U
 
 /**
  * @brief Establish safe outputs even when one PWM provider reports failure.
@@ -182,6 +185,26 @@ static uint8_t _rf448_driver_ReadOverTemperature(int16_t *pnTemperatureDeciC)
     return 0U;
 }
 
+static void _rf448_driver_UpdateBusVoltage(rf448_driver_t *ptThis)
+{
+    mdi_adc_value_t tValue = {0};
+    ptThis->tBusVoltage.hwAdcCode = 0U;
+    ptThis->tBusVoltage.wMilliVolt = 0U;
+    ptThis->tBusVoltage.bValid = false;
+    if (MDI_ADC_Read(client_ivadc, &tValue) == MDI_OK) {
+        ptThis->tBusVoltage.hwAdcCode = (uint16_t)tValue.wCode;
+        if ((tValue.wCode > 0U)
+            && (tValue.wCode < RF448_BUS_ADC_FULL_SCALE)) {
+            ptThis->tBusVoltage.wMilliVolt =
+                ((uint32_t)tValue.wCode * RF448_BUS_ADC_REFERENCE_MV
+                 * RF448_BUS_DIVIDER_RATIO
+                 + (RF448_BUS_ADC_FULL_SCALE / 2U))
+                / RF448_BUS_ADC_FULL_SCALE;
+            ptThis->tBusVoltage.bValid = true;
+        }
+    }
+}
+
 /** @copydoc rf448_driver_Run */
 fsm_rt_t rf448_driver_Run(rf448_driver_t *ptThis)
 {
@@ -233,6 +256,7 @@ fsm_rt_t rf448_driver_Run(rf448_driver_t *ptThis)
                     int16_t nTemperatureDeciC = 0;
                     uint8_t chNtc = _rf448_driver_ReadOverTemperature(
                         &nTemperatureDeciC);
+                    _rf448_driver_UpdateBusVoltage(ptThis);
                     if (chNtc != 0U) {
                         MLOGF(E, "RF448 over-temperature NTC%u=%d.%dC; stopping\r\n",
                               (unsigned)chNtc,
@@ -253,6 +277,7 @@ fsm_rt_t rf448_driver_Run(rf448_driver_t *ptThis)
                         MLOGF(I, "RF448 energy updated=%u/1000\r\n",
                             (unsigned)ptThis->hwTargetEnergyPermille);
                     }
+                    PERFC_PT_DELAY_MS(RF448_FEEDBACK_PERIOD_MS);
                     PERFC_PT_YIELD(fsm_rt_cpl)
                 }
             } while (0);
@@ -295,6 +320,18 @@ rf448_result_t rf448_driver_GetStatus(const rf448_driver_t *ptThis,
     ptStatus->eTargetHead = ptThis->eTargetHead;
     ptStatus->hwTargetEnergyPermille = ptThis->hwTargetEnergyPermille;
     ptStatus->bOutputEnabled = MDI_PWM_IsEnabled(pwm1);
+    return RF448_RESULT_OK;
+}
+
+/** @copydoc rf448_driver_GetBusVoltage */
+rf448_result_t rf448_driver_GetBusVoltage(
+    const rf448_driver_t *ptThis,
+    rf448_driver_bus_voltage_t *ptVoltage)
+{
+    if ((ptThis == NULL) || (ptVoltage == NULL)) {
+        return RF448_RESULT_INVALID;
+    }
+    *ptVoltage = ptThis->tBusVoltage;
     return RF448_RESULT_OK;
 }
 

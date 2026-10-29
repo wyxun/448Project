@@ -8,9 +8,42 @@
 #include "mdi/instance.h"
 #include "mdebug/mshell.h"
 #include "mdebug/util_debug.h"
-#include "perf_counter.h"
 #include <stddef.h>
 #include <string.h>
+
+#if USERCONFIG_BOARD_LINK_ENABLE && !USERCONFIG_MSHELL_ON_SERIAL
+/** @brief Transfer bounded UART batches and retain short TX tails. */
+static void _mvc_PollBoard(mvc_t *ptThis)
+{
+    board_protocol_t *ptLink = &ptThis->tBoardProtocol;
+    uint8_t achData[32];
+    uint32_t wCount = 0U;
+    uint16_t hwFree = mringbuf_GetFree(&ptLink->tRxRing);
+    uint32_t wLength = hwFree < sizeof(achData) ? hwFree : sizeof(achData);
+    mdi_status_t eStatus = MDI_OK;
+    if (wLength != 0U) {
+        eStatus = MDI_STREAM_Read(serial_stream, achData, wLength, &wCount);
+        if ((eStatus != MDI_OK) && (eStatus != MDI_OVERRUN)) {
+            MLOGF(W, "Board RX error=%d\r\n", (int)eStatus);
+        }
+        if (board_protocol_Receive(ptLink, achData, (uint16_t)wCount)
+            != wCount) {
+            MLOGF(E, "Board RX buffer full\r\n");
+        }
+    }
+    if (ptLink->chTxOffset < ptLink->chTxLength) {
+        wCount = 0U;
+        eStatus = MDI_STREAM_Write(serial_stream,
+            &ptLink->achTx[ptLink->chTxOffset],
+            ptLink->chTxLength - ptLink->chTxOffset, &wCount);
+        ptLink->chTxOffset += (uint8_t)wCount;
+        if (eStatus != MDI_OK) {
+            MLOGF(W, "Board TX error=%d\r\n", (int)eStatus);
+        }
+    }
+}
+
+#endif
 
 #define MVC_RELAY_SETTLE_MS 30U
 #define MVC_CONTROL_SETTLE_MS 1U
@@ -29,67 +62,70 @@ static void _mvc_SetFans(mvc_t *ptThis, bool bEnable)
     }
 }
 
-/**
- * @brief Log all latest averaged ADC codes once per second.
- * @param ptThis MVC instance holding the log deadline.
- * @return None; read status is printed with each value.
- */
-static void _mvc_LogAdc(mvc_t *ptThis)
+#if USERCONFIG_BOARD_LINK_ENABLE && !USERCONFIG_MSHELL_ON_SERIAL
+/** @brief Consume one command only when its reply can be retained. */
+static void _mvc_ServiceBoard(mvc_t *ptThis)
 {
-    mdi_adc_value_t tIvadc = {0};
-    mdi_adc_value_t tNtc12 = {0};
-    mdi_adc_value_t tNtc11 = {0};
-    mdi_adc_value_t tRfv = {0};
-    mdi_adc_value_t tRfi = {0};
-    mdi_status_t eIvadc;
-    mdi_status_t eNtc12;
-    mdi_status_t eNtc11;
-    mdi_status_t eRfv;
-    mdi_status_t eRfi;
-    int16_t nNtc12TemperatureDeciC = 0;
-    int16_t nNtc11TemperatureDeciC = 0;
-    int32_t nNtc12Magnitude = 0;
-    int32_t nNtc11Magnitude = 0;
-    bool bNtc12TemperatureValid = false;
-    bool bNtc11TemperatureValid = false;
-    if (!perfc_is_time_out_ms(1000U, &ptThis->lAdcLogDeadline, true)) {
+    board_protocol_message_t tMessage = {0};
+    board_protocol_message_t tReply = {0};
+    rf448_driver_status_t tStatus = {0};
+    rf448_result_t eResult = RF448_RESULT_INVALID;
+    board_protocol_t *ptLink = &ptThis->tBoardProtocol;
+    _mvc_PollBoard(ptThis);
+    if (ptLink->chTxOffset < ptLink->chTxLength) {
         return;
     }
-    eIvadc = MDI_ADC_Read(client_ivadc, &tIvadc);
-    eNtc12 = MDI_ADC_Read(client_ntc12, &tNtc12);
-    eNtc11 = MDI_ADC_Read(client_ntc11, &tNtc11);
-    eRfv = MDI_ADC_Read(client_rfv, &tRfv);
-    eRfi = MDI_ADC_Read(client_rfi, &tRfi);
-    bNtc12TemperatureValid = (eNtc12 == MDI_OK)
-        && rf448_driver_ConvertNtcAdcToDeciCelsius(
-            tNtc12.wCode, &nNtc12TemperatureDeciC);
-    bNtc11TemperatureValid = (eNtc11 == MDI_OK)
-        && rf448_driver_ConvertNtcAdcToDeciCelsius(
-            tNtc11.wCode, &nNtc11TemperatureDeciC);
-    nNtc12Magnitude = nNtc12TemperatureDeciC < 0
-                    ? -(int32_t)nNtc12TemperatureDeciC
-                    : (int32_t)nNtc12TemperatureDeciC;
-    nNtc11Magnitude = nNtc11TemperatureDeciC < 0
-                    ? -(int32_t)nNtc11TemperatureDeciC
-                    : (int32_t)nNtc11TemperatureDeciC;
-    MLOGF(T, "ADC IVADC=%u(%d) NTC12=%u(%d) NTC11=%u(%d) "
-             "RF0V=%u(%d) RF0I=%u(%d)\r\n"
-             "NTC12 temperature=%s%d.%dC(%s) "
-             "NTC11 temperature=%s%d.%dC(%s)\r\n",
-          (unsigned)tIvadc.wCode, (int)eIvadc,
-          (unsigned)tNtc12.wCode, (int)eNtc12,
-          (unsigned)tNtc11.wCode, (int)eNtc11,
-          (unsigned)tRfv.wCode, (int)eRfv,
-          (unsigned)tRfi.wCode, (int)eRfi,
-          nNtc12TemperatureDeciC < 0 ? "-" : "",
-          (int)(nNtc12Magnitude / 10),
-          (int)(nNtc12Magnitude % 10),
-          bNtc12TemperatureValid ? "valid" : "invalid",
-          nNtc11TemperatureDeciC < 0 ? "-" : "",
-          (int)(nNtc11Magnitude / 10),
-          (int)(nNtc11Magnitude % 10),
-          bNtc11TemperatureValid ? "valid" : "invalid");
+    if (ptThis->bFaultPending) {
+        tReply.eType = BOARD_PROTOCOL_FAULT;
+        tReply.hwFaultMask = 2U;
+        if (board_protocol_Queue(ptLink, &tReply)) {
+            ptThis->bFaultPending = false;
+        }
+        return;
+    }
+    if (!board_protocol_Read(ptLink, &tMessage)) {
+        return;
+    }
+    if (tMessage.eType == BOARD_PROTOCOL_STOP) {
+        eResult = rf448_driver_Stop(&ptThis->tRf448);
+        _mvc_SetFans(ptThis, false);
+    } else if ((tMessage.eType == BOARD_PROTOCOL_START)
+        || (tMessage.eType == BOARD_PROTOCOL_ENERGY)) {
+        eResult = rf448_driver_GetStatus(&ptThis->tRf448, &tStatus);
+        if ((eResult == RF448_RESULT_OK)
+            && (tMessage.eType == BOARD_PROTOCOL_ENERGY)
+            && ((tStatus.eState != RF448_STATE_RUNNING)
+                || ((unsigned)tStatus.eTargetHead
+                    != (unsigned)tMessage.eHead))) {
+            eResult = RF448_RESULT_NOT_READY;
+        }
+        if (eResult == RF448_RESULT_OK) {
+            eResult = rf448_driver_Start(&ptThis->tRf448,
+                tMessage.eHead == BOARD_PROTOCOL_HEAD_CAP
+                    ? RF448_HEAD_CAP : RF448_HEAD_RES,
+                tMessage.hwEnergyPermille);
+        }
+    } else {
+        return; /* Replies and faults have no meaning on the command endpoint. */
+    }
+    tReply.eType = BOARD_PROTOCOL_REPLY;
+    tReply.chSequence = tMessage.chSequence;
+    tReply.eCommand = tMessage.eType;
+    /* Driver and wire result values are deliberately mapped explicitly. */
+    switch (eResult) {
+    case RF448_RESULT_OK: tReply.eResult = BOARD_PROTOCOL_ACCEPTED; break;
+    case RF448_RESULT_INVALID: tReply.eResult = BOARD_PROTOCOL_INVALID; break;
+    case RF448_RESULT_NOT_READY:
+        tReply.eResult = BOARD_PROTOCOL_NOT_READY; break;
+    case RF448_RESULT_BUSY: tReply.eResult = BOARD_PROTOCOL_BUSY; break;
+    case RF448_RESULT_IO: tReply.eResult = BOARD_PROTOCOL_IO; break;
+    default: tReply.eResult = BOARD_PROTOCOL_DRIVER_FAULT; break;
+    }
+    if (!board_protocol_Queue(ptLink, &tReply)) {
+        MLOGF(E, "Board reply queue failed\r\n");
+    }
 }
+#endif
 
 /** @copydoc mvc_Init */
 int mvc_Init(uintptr_t wObjectAddr, uintptr_t wObjectCfgAddr)
@@ -102,6 +138,12 @@ int mvc_Init(uintptr_t wObjectAddr, uintptr_t wObjectCfgAddr)
     MDI_IO_Write(pt_fan, 0U);
     (void)memset(ptThis, 0, sizeof(*ptThis));
     ptThis->eState = MVC_STATE_UNINITIALIZED;
+#if USERCONFIG_BOARD_LINK_ENABLE && !USERCONFIG_MSHELL_ON_SERIAL
+    if (!board_protocol_Init(&ptThis->tBoardProtocol)) {
+        ptThis->eState = MVC_STATE_ERROR;
+        return MODUS_EFAIL;
+    }
+#endif
     if ((ptCfg == NULL) || (ptCfg->wObjectId == 0U)) {
         eResult = rf448_driver_Stop(&ptThis->tRf448);
         ptThis->eState = MVC_STATE_ERROR;
@@ -145,17 +187,23 @@ int mvc_Run(uintptr_t wObjectAddr)
     rf448_result_t eResult = RF448_RESULT_OK;
     fsm_rt_t eRun = fsm_rt_err;
     if (ptThis == NULL) { return MODUS_EFAIL; }
-    if (ptThis->eState != MVC_STATE_UNINITIALIZED) {
-        _mvc_LogAdc(ptThis);
+#if USERCONFIG_BOARD_LINK_ENABLE && !USERCONFIG_MSHELL_ON_SERIAL
+    if (ptThis->eState == MVC_STATE_ERROR) {
+        _mvc_ServiceBoard(ptThis);
     }
+#endif
     if ((ptThis->eState == MVC_STATE_UNINITIALIZED)
         || (ptThis->eState == MVC_STATE_ERROR)) {
         return MODUS_EFAIL;
     }
+#if USERCONFIG_BOARD_LINK_ENABLE && !USERCONFIG_MSHELL_ON_SERIAL
+    _mvc_ServiceBoard(ptThis);
+#endif
     eRun = rf448_driver_Run(&ptThis->tRf448);
     eResult = rf448_driver_GetStatus(&ptThis->tRf448, &tStatus);
     if ((eRun == fsm_rt_err) || (eResult != RF448_RESULT_OK)) {
         _mvc_SetFans(ptThis, false);
+        ptThis->bFaultPending = true;
         ptThis->eState = MVC_STATE_ERROR;
         MLOGF(E, "MVC RF448 failed=%u\r\n", (unsigned)tStatus.eLastError);
         return MODUS_EFAIL;

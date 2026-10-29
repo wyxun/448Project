@@ -15,6 +15,7 @@ if ($Module -ne 'pwm') {
     "-I$PSScriptRoot/fake" "-I$project/class" "-I$project/modus/src" `
     "-I$project/modus/src/mdebug" -DMSHELL_ENABLE=1 `
     "$project/class/rf448_driver.c" "$project/class/mvc.c" `
+    "$project/class/board_protocol.c" "$project/modus/src/utilities/mringbuf.c" `
     "$project/modus/src/mdebug/mshell_parse.c" `
     "$PSScriptRoot/rf448_test.c" -o $output
 if ($LASTEXITCODE -ne 0) { throw 'RF448 compilation failed' }

@@ -4,6 +4,13 @@
 #include "at32f421_adc.h"
 #include "at32f421_dma.h"
 #include "mdi/instance.h"
+#include "userconfig.h"
+
+#if USERCONFIG_MSHELL_ON_SERIAL
+#define AT32_CLIENT_USART1_BAUDRATE 115200U
+#else
+#define AT32_CLIENT_USART1_BAUDRATE 4800U
+#endif
 
 static void adc_init(void)
 {
@@ -233,7 +240,8 @@ static void usart1_init(void)
         return;
     }
 
-    usart_init(USART1, 4800U, USART_DATA_8BITS, USART_STOP_1_BIT);
+    usart_init(USART1, AT32_CLIENT_USART1_BAUDRATE,
+               USART_DATA_8BITS, USART_STOP_1_BIT);
     usart_transmitter_enable(USART1, TRUE);
     usart_receiver_enable(USART1, TRUE);
     usart_parity_selection_config(USART1, USART_PARITY_NONE);

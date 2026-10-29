@@ -18,7 +18,8 @@ ifdef target
 endif
 
 TARGET_CHIP ?= at32f421
-CLASS_SOURCES = class/mvc.c class/rf448_driver.c
+CLASS_SOURCES = class/mvc.c class/mvc_debug.c class/rf448_driver.c \
+                class/board_protocol.c
 
 include target/$(TARGET_CHIP)/target.mk
 

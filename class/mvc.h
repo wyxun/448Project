@@ -8,6 +8,7 @@
 #define M448_CLIENT_MVC_H
 #include "modus.h"
 #include "rf448_driver.h"
+#include "board_protocol.h"
 typedef enum {
     MVC_STATE_UNINITIALIZED = 0, MVC_STATE_IDLE,
     MVC_STATE_RUNNING, MVC_STATE_ERROR,
@@ -20,9 +21,10 @@ typedef struct {
     modus_base_t tBase;
     modus_base_cfg_t tBaseCfg;
     rf448_driver_t tRf448;
+    board_protocol_t tBoardProtocol;
     mvc_state_t eState;
     bool bFansEnabled;
-    int64_t lAdcLogDeadline;
+    bool bFaultPending;
 } mvc_t;
 /**
  * @brief Initialize the owned driver and register its parent MODUS object.

@@ -12,7 +12,8 @@
 
 #define RF448_ENERGY_FULL_SCALE 1000U
 #define RF448_SETTLE_MAX_MS 500U
-#define RF448_OVERTEMP_THRESHOLD_DECI_C 900
+#define RF448_OVERTEMP_THRESHOLD_DECI_C 860
+#define RF448_FEEDBACK_PERIOD_MS 50U
 
 typedef enum {
     RF448_HEAD_CAP = 0, RF448_HEAD_RES,
@@ -37,6 +38,13 @@ typedef struct {
     uint32_t wControlSettleMs;
 } rf448_driver_cfg_t;
 
+/** @brief Latest bus ADC sample and converted voltage. */
+typedef struct {
+    uint16_t hwAdcCode;
+    uint32_t wMilliVolt;
+    bool bValid;
+} rf448_driver_bus_voltage_t;
+
 /** @brief Foreground-only state owned by the parent MVC instance. */
 typedef struct {
     rf448_state_t eState;
@@ -48,6 +56,7 @@ typedef struct {
     uint32_t wControlSettleMs;
     uint8_t chRunPt;
     int64_t lWaitDeadline;      /**< perf_counter tick deadline; 0 disarmed. */
+    rf448_driver_bus_voltage_t tBusVoltage;
 } rf448_driver_t;
 
 /** @brief Target settings and current startup/output state. */
@@ -79,9 +88,10 @@ rf448_result_t rf448_driver_Init(rf448_driver_t *ptThis,
 rf448_result_t rf448_driver_Start(rf448_driver_t *ptThis,
     rf448_head_t eHead, uint16_t hwEnergyPermille);
 /**
- * @brief Advance internal head and energy startup sequencing without blocking.
+ * @brief Advance startup and refresh NTC and bus feedback while running.
  * @param ptThis Initialized driver serviced from the foreground.
- * @return on_going while settling, cpl when idle/running, err on failure.
+ * @return on_going while settling or waiting between 20 Hz checks, cpl when
+ *         an interval completes or the driver is idle, err on failure.
  */
 fsm_rt_t rf448_driver_Run(rf448_driver_t *ptThis);
 /**
@@ -99,6 +109,16 @@ rf448_result_t rf448_driver_Stop(rf448_driver_t *ptThis);
  */
 rf448_result_t rf448_driver_GetStatus(const rf448_driver_t *ptThis,
                                      rf448_driver_status_t *ptStatus);
+
+/**
+ * @brief Copy the latest bus voltage sample, refreshed while RF is running.
+ * @param ptThis Driver holding the latest feedback sample.
+ * @param ptVoltage Destination snapshot, including validity.
+ * @return OK or INVALID for a null pointer.
+ */
+rf448_result_t rf448_driver_GetBusVoltage(
+    const rf448_driver_t *ptThis,
+    rf448_driver_bus_voltage_t *ptVoltage);
 
 /**
  * @brief Convert the 12-bit ADC code from either 10 kOhm B3950 NTC to deci-degrees Celsius.

@@ -46,12 +46,12 @@ ADC 组资源：`client_adc_dma` 用于块发布/消费，`client_adc_mean` 只�
 
 | MDI 资源 | 外设 | 引脚/配置 | 调用方式 | 上层职责 |
 |---|---|---|---|---|
-| `serial_stream` | USART1 | 4800 baud；PA9 TX、PA10 RX | `MDI_STREAM_*` | Client 应用串口服务 |
+| `serial_stream` | USART1 | `USERCONFIG_MSHELL_ON_SERIAL=1` 时 115200 baud，否则 4800 baud；PA9 TX、PA10 RX | `MDI_STREAM_*` | 串口 MShell 调试或板间通信（二选一） |
 | `raw_tick` | `perf_counter::get_system_ticks()` | AT32F421 HCLK 96 MHz | `MDI_TICK_Now(raw_tick)` | 原始 CPU 周期参考，不提供毫秒/微秒单位 |
 
 Stream 读写返回 `mdi_status_t`，实际字节数从输出参数取得。空队列、零长度、短传输返回 `MDI_OK`；`MDI_OVERRUN` 可以伴随有效已读字节。调用方必须检查状态和数量。Read 立即返回已有字节，`mdi_Clock()` 不再推进空闲超时。
 
-USART1 队列初始化成功后才启用 IRQ。接收溢出通过状态寄存器读取后再读取数据寄存器清除；发送完成同时检查 TDC 和 TDC 中断使能。USART1 为光耦板间链路，4800 baud，与 master USART3 对应。启用串口 shell 时该链路用于调试，不同时作为业务协议接收端。
+USART1 队列初始化成功后才启用 IRQ。接收溢出通过状态寄存器读取后再读取数据寄存器清除；发送完成同时检查 TDC 和 TDC 中断使能。`USERCONFIG_MSHELL_ON_SERIAL=0` 时 USART1 为光耦板间链路，4800 baud，与 Master USART3 对应；设为 `1` 时 USART1 改为 115200 baud 用于串口 MShell 调试，板间协议服务关闭。
 
 继电器 MDI 逻辑位直接按客板 RL1～RL6 编号；选头使用 bit3～5，对应 PB5～PB7。
 

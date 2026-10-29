@@ -10,6 +10,11 @@
  * Enable for chips that don't have a debug probe connected (e.g. CH592). */
 #define USERCONFIG_MSHELL_ON_SERIAL 0
 
+/* Enable protocol traffic between Master and Client. */
+#ifndef USERCONFIG_BOARD_LINK_ENABLE
+#define USERCONFIG_BOARD_LINK_ENABLE 1
+#endif
+
 /* 最大注册命令数（含内置命令），覆盖 mshell.h 默认的 16 */
 #define MSHELL_MAX_CMDS             32
 
