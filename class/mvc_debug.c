@@ -112,6 +112,30 @@ static void _debug_HeatCommand(const char *pchArgs)
 
 MODUS_SHELL_CMD(heat, _debug_HeatCommand, "Heater control: start | stop");
 
+/** @brief Request one client ADC snapshot. */
+static void _debug_ClientCommand(const char *pchArgs)
+{
+#if USERCONFIG_BOARD_LINK_ENABLE
+    board_protocol_message_t tMessage = {0};
+    if (!mshell_ConsumeWord(&pchArgs, "read") || !mshell_AtEnd(pchArgs)) {
+        MLOGF(W, "Usage: client read\r\n");
+        return;
+    }
+    tMessage.eType = BOARD_PROTOCOL_READ_ADC;
+    if ((tMvc.tProbeCommand.eCommand != MVC_PROBE_COMMAND_NONE)
+        || !board_protocol_Request(&tMvc.tBoardProtocol, &tMessage)) {
+        MLOGF(W, "Client request busy\r\n");
+        return;
+    }
+    tMvc.lBoardReplyDeadline = 0;
+    MLOGF(I, "Client read queued\r\n");
+#else
+    (void)pchArgs;
+    MLOGF(W, "Board link disabled\r\n");
+#endif
+}
+MODUS_SHELL_CMD(client, _debug_ClientCommand, "Client: read ADC feedback");
+
 /** @brief Exercise the normal RF command path using the shared parameter bank. */
 static void _debug_RfProbe(mvc_probe_t eProbe, const char *pchText)
 {

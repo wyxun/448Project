@@ -141,6 +141,18 @@ static void _mvc_ServiceBoard(mvc_t *ptThis)
                     && (tMessage.eCommand == BOARD_PROTOCOL_START))) {
                 ptThis->eActiveProbe = MVC_PROBE_NONE;
             }
+            if (tMessage.eType == BOARD_PROTOCOL_ADC_DATA) {
+                uint32_t wBus = ((uint32_t)tMessage.ahwAdc[0] * 62700U + 2047U) / 4095U;
+                uint32_t wRfi = ((uint32_t)tMessage.ahwAdc[4] * 3300U + 2047U) / 4095U;
+                MLOGF(I, "Client ADC IVADC=%u NTC12=%u NTC11=%u RF0V=%u RF0I=%u valid=0x%02x\r\n",
+                    (unsigned)tMessage.ahwAdc[0], (unsigned)tMessage.ahwAdc[1],
+                    (unsigned)tMessage.ahwAdc[2], (unsigned)tMessage.ahwAdc[3],
+                    (unsigned)tMessage.ahwAdc[4], (unsigned)tMessage.chAdcValid);
+                MLOGF(I, "Client bus=%lu mV RF0I=%lu mV NTC12=%d NTC11=%d (0.1C)\r\n",
+                    (unsigned long)wBus, (unsigned long)wRfi,
+                    (int)tMessage.anTemperature[0], (int)tMessage.anTemperature[1]);
+                continue;
+            }
             MLOGF(I, "Client reply cmd=%u result=%u\r\n",
                 (unsigned)tMessage.eCommand, (unsigned)tMessage.eResult);
         } else {
