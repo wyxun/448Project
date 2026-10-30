@@ -99,7 +99,7 @@ static void sequence(rf448_driver_t *ptDriver, rf448_head_t eHead,
 {
     rf448_driver_status_t tStatus = {0};
     const unsigned before = s_head_writes;
-    assert(rf448_driver_Start(ptDriver, eHead, hwEnergy) == RF448_RESULT_OK);
+    assert(rf448_driver_Start(ptDriver, eHead, hwEnergy, RF448_MODE_OPEN_LOOP) == RF448_RESULT_OK);
     assert(s_head_writes == before && !test_carrier);
     assert(rf448_driver_Run(ptDriver) == fsm_rt_on_going);
     assert(test_duty == 1000U && test_sd == 1U && !test_carrier);
@@ -121,12 +121,12 @@ static void sequence(rf448_driver_t *ptDriver, rf448_head_t eHead,
     const uint16_t updated_energy = hwEnergy == 1000U ? 0U : 1000U;
     const rf448_head_t other_head = eHead == RF448_HEAD_CAP
                                  ? RF448_HEAD_RES : RF448_HEAD_CAP;
-    assert(rf448_driver_Start(ptDriver, other_head, updated_energy)
+    assert(rf448_driver_Start(ptDriver, other_head, updated_energy, RF448_MODE_OPEN_LOOP)
         == RF448_RESULT_BUSY);
-    assert(rf448_driver_Start(ptDriver, eHead, 1001U) == RF448_RESULT_INVALID);
+    assert(rf448_driver_Start(ptDriver, eHead, 1001U, RF448_MODE_OPEN_LOOP) == RF448_RESULT_INVALID);
     assert(rf448_driver_GetStatus(ptDriver, &tStatus) == RF448_RESULT_OK);
     assert(tStatus.hwTargetEnergyPermille == hwEnergy);
-    assert(rf448_driver_Start(ptDriver, eHead, updated_energy)
+    assert(rf448_driver_Start(ptDriver, eHead, updated_energy, RF448_MODE_OPEN_LOOP)
         == RF448_RESULT_OK);
     assert(test_duty == 1000U - (uint32_t)hwEnergy);
     assert(rf448_driver_Run(ptDriver) == fsm_rt_cpl);
@@ -156,7 +156,7 @@ static void continuous_lifecycle_test(void)
     sequence(&tDriver, RF448_HEAD_RES, 600U);
     assert(tDriver.chRunPt != 0U);
     for (unsigned phase = 0U; phase < 2U; phase++) {
-        assert(rf448_driver_Start(&tDriver, RF448_HEAD_CAP, 500U)
+        assert(rf448_driver_Start(&tDriver, RF448_HEAD_CAP, 500U, RF448_MODE_OPEN_LOOP)
             == RF448_RESULT_OK);
         assert(rf448_driver_Run(&tDriver) == fsm_rt_on_going);
         s_now += 30;
@@ -181,28 +181,28 @@ static void driver_test(void)
     reset();
     assert(rf448_driver_Init(NULL, &s_cfg) == RF448_RESULT_INVALID);
     assert(rf448_driver_Run(&tDriver) == fsm_rt_err);
-    assert(rf448_driver_Start(&tDriver, RF448_HEAD_CAP, 1U)
+    assert(rf448_driver_Start(&tDriver, RF448_HEAD_CAP, 1U, RF448_MODE_OPEN_LOOP)
         == RF448_RESULT_NOT_READY);
     assert(rf448_driver_Init(&tDriver, &tBad) == RF448_RESULT_INVALID);
     assert(test_sd == 1U && test_duty == 1000U && !test_carrier);
     assert(rf448_driver_Init(&tDriver, &s_cfg) == RF448_RESULT_OK);
     assert(test_dac_enabled && s_head_writes == 0U);
-    assert(rf448_driver_Start(&tDriver, RF448_HEAD_CAP, 1001U)
+    assert(rf448_driver_Start(&tDriver, RF448_HEAD_CAP, 1001U, RF448_MODE_OPEN_LOOP)
         == RF448_RESULT_INVALID);
-    assert(rf448_driver_Start(&tDriver, (rf448_head_t)99, 0U)
+    assert(rf448_driver_Start(&tDriver, (rf448_head_t)99, 0U, RF448_MODE_OPEN_LOOP)
         == RF448_RESULT_INVALID);
     sequence(&tDriver, RF448_HEAD_CAP, 0U);
     sequence(&tDriver, RF448_HEAD_RES, 1000U);
     sequence(&tDriver, RF448_HEAD_CAP, 500U);
     /* A pending request can be cancelled without moving any relay. */
     const unsigned before_cancel = s_head_writes;
-    assert(rf448_driver_Start(&tDriver, RF448_HEAD_CAP, 99U)
+    assert(rf448_driver_Start(&tDriver, RF448_HEAD_CAP, 99U, RF448_MODE_OPEN_LOOP)
         == RF448_RESULT_OK);
     assert(rf448_driver_Stop(&tDriver) == RF448_RESULT_OK);
     assert(rf448_driver_Run(&tDriver) == fsm_rt_cpl);
     assert(s_head_writes == before_cancel && !test_carrier);
     /* Energy may be nonzero while RF is still inhibited; Stop must clear it. */
-    assert(rf448_driver_Start(&tDriver, RF448_HEAD_CAP, 777U)
+    assert(rf448_driver_Start(&tDriver, RF448_HEAD_CAP, 777U, RF448_MODE_OPEN_LOOP)
         == RF448_RESULT_OK);
     assert(rf448_driver_Run(&tDriver) == fsm_rt_on_going);
     s_now += 30;
@@ -211,7 +211,7 @@ static void driver_test(void)
     assert(rf448_driver_Stop(&tDriver) == RF448_RESULT_OK);
     assert(test_duty == 1000U && !test_carrier);
     assert(rf448_driver_Run(&tDriver) == fsm_rt_cpl);
-    assert(rf448_driver_Start(&tDriver, RF448_HEAD_RES, 100U)
+    assert(rf448_driver_Start(&tDriver, RF448_HEAD_RES, 100U, RF448_MODE_OPEN_LOOP)
         == RF448_RESULT_OK);
     assert(rf448_driver_Run(&tDriver) == fsm_rt_on_going);
     assert(rf448_driver_Stop(&tDriver) == RF448_RESULT_OK);
@@ -219,12 +219,12 @@ static void driver_test(void)
     s_now += 100;
     assert(rf448_driver_Run(&tDriver) == fsm_rt_cpl && !test_carrier);
     assert(rf448_driver_Init(&tOther, &s_cfg) == RF448_RESULT_OK);
-    assert(rf448_driver_Start(&tDriver, RF448_HEAD_CAP, 100U)
+    assert(rf448_driver_Start(&tDriver, RF448_HEAD_CAP, 100U, RF448_MODE_OPEN_LOOP)
         == RF448_RESULT_OK);
     assert(rf448_driver_Run(&tDriver) == fsm_rt_on_going);
     const int64_t first_deadline = tDriver.lWaitDeadline;
     s_now += 10;
-    assert(rf448_driver_Start(&tOther, RF448_HEAD_RES, 100U)
+    assert(rf448_driver_Start(&tOther, RF448_HEAD_RES, 100U, RF448_MODE_OPEN_LOOP)
         == RF448_RESULT_OK);
     assert(rf448_driver_Run(&tOther) == fsm_rt_on_going);
     assert(tDriver.lWaitDeadline == first_deadline);
@@ -232,7 +232,7 @@ static void driver_test(void)
     assert(rf448_driver_Stop(&tOther) == RF448_RESULT_OK);
     assert(rf448_driver_Stop(&tDriver) == RF448_RESULT_OK);
     assert(rf448_driver_Run(&tDriver) == fsm_rt_cpl);
-    assert(rf448_driver_Start(&tDriver, RF448_HEAD_CAP, 123U)
+    assert(rf448_driver_Start(&tDriver, RF448_HEAD_CAP, 123U, RF448_MODE_OPEN_LOOP)
         == RF448_RESULT_OK);
     assert(rf448_driver_Run(&tDriver) == fsm_rt_on_going);
     s_now += 30;
@@ -241,13 +241,13 @@ static void driver_test(void)
     assert(rf448_driver_GetStatus(&tDriver, &tStatus) == RF448_RESULT_OK);
     assert(tStatus.eState == RF448_STATE_ERROR && !tStatus.bOutputEnabled);
     assert(test_duty == 1000U && test_sd == 1U);
-    assert(rf448_driver_Start(&tDriver, RF448_HEAD_CAP, 0U)
+    assert(rf448_driver_Start(&tDriver, RF448_HEAD_CAP, 0U, RF448_MODE_OPEN_LOOP)
         == RF448_RESULT_FAULT);
     assert(rf448_driver_Init(&tDriver, &s_cfg) == RF448_RESULT_IO);
     assert(test_sd == 1U && !test_carrier && test_duty == 1000U);
     test_io_result = MDI_OK;
     assert(rf448_driver_Init(&tDriver, &s_cfg) == RF448_RESULT_OK);
-    assert(rf448_driver_Start(&tDriver, RF448_HEAD_RES, 700U)
+    assert(rf448_driver_Start(&tDriver, RF448_HEAD_RES, 700U, RF448_MODE_OPEN_LOOP)
         == RF448_RESULT_OK);
     assert(rf448_driver_Run(&tDriver) == fsm_rt_on_going);
     s_now += 30;
@@ -264,26 +264,26 @@ static void live_energy_failure_test(void)
     rf448_driver_status_t tStatus = {0};
     reset();
     assert(rf448_driver_Init(&tDriver, &s_cfg) == RF448_RESULT_OK);
-    assert(rf448_driver_Start(&tDriver, RF448_HEAD_CAP, 500U)
+    assert(rf448_driver_Start(&tDriver, RF448_HEAD_CAP, 500U, RF448_MODE_OPEN_LOOP)
         == RF448_RESULT_OK);
     assert(rf448_driver_Run(&tDriver) == fsm_rt_on_going);
     s_now += 30;
     assert(rf448_driver_Run(&tDriver) == fsm_rt_on_going);
     s_now++;
     assert(rf448_driver_Run(&tDriver) == fsm_rt_cpl);
-    assert(rf448_driver_Start(&tDriver, RF448_HEAD_CAP, 800U)
+    assert(rf448_driver_Start(&tDriver, RF448_HEAD_CAP, 800U, RF448_MODE_OPEN_LOOP)
         == RF448_RESULT_OK);
     assert(rf448_driver_Stop(&tDriver) == RF448_RESULT_OK);
     assert(rf448_driver_Run(&tDriver) == fsm_rt_cpl);
     assert(test_duty == 1000U && test_relay == 5U && !test_carrier);
-    assert(rf448_driver_Start(&tDriver, RF448_HEAD_CAP, 500U)
+    assert(rf448_driver_Start(&tDriver, RF448_HEAD_CAP, 500U, RF448_MODE_OPEN_LOOP)
         == RF448_RESULT_OK);
     assert(rf448_driver_Run(&tDriver) == fsm_rt_on_going);
     s_now += 30;
     assert(rf448_driver_Run(&tDriver) == fsm_rt_on_going);
     s_now++;
     assert(rf448_driver_Run(&tDriver) == fsm_rt_cpl);
-    assert(rf448_driver_Start(&tDriver, RF448_HEAD_CAP, 800U)
+    assert(rf448_driver_Start(&tDriver, RF448_HEAD_CAP, 800U, RF448_MODE_OPEN_LOOP)
         == RF448_RESULT_OK);
     test_io_result = MDI_IO_ERROR;
     assert(rf448_driver_Run(&tDriver) == fsm_rt_err);
@@ -304,7 +304,7 @@ static void mvc_test(void)
     assert(tObject.tBase.wId == 123U);
     assert(mvc_Run((uintptr_t)&tObject) == MODUS_SUCCESS);
     assert(tObject.eState == MVC_STATE_IDLE);
-    assert(rf448_driver_Start(&tObject.tRf448, RF448_HEAD_CAP, 250U)
+    assert(rf448_driver_Start(&tObject.tRf448, RF448_HEAD_CAP, 250U, RF448_MODE_OPEN_LOOP)
         == RF448_RESULT_OK);
     assert(mvc_Run((uintptr_t)&tObject) == MODUS_SUCCESS);
     assert(tObject.eState == MVC_STATE_RUNNING);

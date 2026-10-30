@@ -19,6 +19,8 @@ typedef enum {
     BOARD_PROTOCOL_START = 0x01,
     BOARD_PROTOCOL_STOP = 0x02,
     BOARD_PROTOCOL_ENERGY = 0x03,
+    BOARD_PROTOCOL_READ_ADC = 0x04,
+    BOARD_PROTOCOL_ADC_DATA = 0x83,
     BOARD_PROTOCOL_REPLY = 0x81,
     BOARD_PROTOCOL_FAULT = 0x82,
 } board_protocol_type_t;
@@ -46,6 +48,9 @@ typedef struct {
     board_protocol_type_t eCommand;
     board_protocol_result_t eResult;
     uint16_t hwFaultMask;
+    uint16_t ahwAdc[5];
+    int16_t anTemperature[2];
+    uint8_t chAdcValid;
 } board_protocol_message_t;
 
 /** One outstanding command; sequence survives cancellation and completion. */

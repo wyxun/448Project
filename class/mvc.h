@@ -48,4 +48,6 @@ int mvc_Clock(uintptr_t wObjectAddr);
  * @return MODUS_SUCCESS, otherwise MODUS_EFAIL for initialization/fault errors.
  */
 int mvc_Run(uintptr_t wObjectAddr);
+/** @brief Stop RF output and turn off both fans. */
+rf448_result_t mvc_StopRf448(mvc_t *ptThis);
 #endif

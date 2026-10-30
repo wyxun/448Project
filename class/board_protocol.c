@@ -31,10 +31,13 @@ static int _board_protocol_Length(const board_protocol_message_t *ptMessage)
         return (((unsigned)ptMessage->eHead <= BOARD_PROTOCOL_HEAD_RES)
             && (ptMessage->hwEnergyPermille <= 1000U)) ? 3 : -1;
     case BOARD_PROTOCOL_STOP:
+    case BOARD_PROTOCOL_READ_ADC:
         return 0;
+    case BOARD_PROTOCOL_ADC_DATA:
+        return 15;
     case BOARD_PROTOCOL_REPLY:
         return ((ptMessage->eCommand >= BOARD_PROTOCOL_START)
-            && (ptMessage->eCommand <= BOARD_PROTOCOL_ENERGY)
+            && (ptMessage->eCommand <= BOARD_PROTOCOL_READ_ADC)
             && ((unsigned)ptMessage->eResult <= BOARD_PROTOCOL_DRIVER_FAULT))
             ? 2 : -1;
     case BOARD_PROTOCOL_FAULT:
@@ -93,6 +96,16 @@ bool board_protocol_Queue(board_protocol_t *ptThis,
         pchFrame[6] = (uint8_t)ptMessage->eCommand;
         pchFrame[7] = (uint8_t)ptMessage->eResult;
         break;
+    case BOARD_PROTOCOL_ADC_DATA:
+        pchFrame[6] = ptMessage->chAdcValid;
+        for (uint8_t i = 0U; i < 5U; ++i) {
+            _board_protocol_Write16(&pchFrame[7U + i * 2U], ptMessage->ahwAdc[i]);
+        }
+        for (uint8_t i = 0U; i < 2U; ++i) {
+            _board_protocol_Write16(&pchFrame[17U + i * 2U],
+                                    (uint16_t)ptMessage->anTemperature[i]);
+        }
+        break;
     case BOARD_PROTOCOL_FAULT:
         _board_protocol_Write16(&pchFrame[6], ptMessage->hwFaultMask);
         break;
@@ -130,6 +143,17 @@ static bool _board_protocol_Decode(const uint8_t *pchFrame,
         if (chLength == 2U) {
             tMessage.eCommand = (board_protocol_type_t)pchFrame[6];
             tMessage.eResult = (board_protocol_result_t)pchFrame[7];
+        }
+    } else if (tMessage.eType == BOARD_PROTOCOL_ADC_DATA) {
+        if (chLength == 15U) {
+            tMessage.chAdcValid = pchFrame[6];
+            for (uint8_t i = 0U; i < 5U; ++i) {
+                tMessage.ahwAdc[i] = _board_protocol_Read16(&pchFrame[7U + i * 2U]);
+            }
+            for (uint8_t i = 0U; i < 2U; ++i) {
+                tMessage.anTemperature[i] = (int16_t)_board_protocol_Read16(
+                    &pchFrame[17U + i * 2U]);
+            }
         }
     } else if (tMessage.eType == BOARD_PROTOCOL_FAULT) {
         if (chLength == 2U) {
@@ -209,7 +233,7 @@ bool board_protocol_Request(board_protocol_t *ptThis,
     board_protocol_message_t tMessage = *ptMessage;
     if (ptThis->tRequest.bWaiting
         || (tMessage.eType < BOARD_PROTOCOL_START)
-        || (tMessage.eType > BOARD_PROTOCOL_ENERGY)) {
+        || (tMessage.eType > BOARD_PROTOCOL_READ_ADC)) {
         return false;
     }
     tMessage.chSequence = (uint8_t)(ptThis->tRequest.chSequence + 1U);
@@ -233,9 +257,11 @@ bool board_protocol_AcceptReply(board_protocol_t *ptThis,
     const board_protocol_message_t *ptMessage)
 {
     if (!ptThis->tRequest.bWaiting
-        || (ptMessage->eType != BOARD_PROTOCOL_REPLY)
         || (ptMessage->chSequence != ptThis->tRequest.chSequence)
-        || (ptMessage->eCommand != ptThis->tRequest.eCommand)) {
+        || !(((ptMessage->eType == BOARD_PROTOCOL_REPLY)
+              && (ptMessage->eCommand == ptThis->tRequest.eCommand))
+             || ((ptMessage->eType == BOARD_PROTOCOL_ADC_DATA)
+                 && (ptThis->tRequest.eCommand == BOARD_PROTOCOL_READ_ADC)))) {
         return false;
     }
     ptThis->tRequest.bWaiting = false;
